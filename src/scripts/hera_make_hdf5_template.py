@@ -131,7 +131,7 @@ def create_header(h5, use_cm=False, use_redis=False):
     """
 
     INSTRUMENT = "HERA"
-    NANTS_DATA = 192
+    NANTS_DATA = 32
     NANTS = 352
     NCHANS = int(2048 // 4 * 3)
     NCHANS_F = 8192
