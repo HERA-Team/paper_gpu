@@ -39,21 +39,12 @@
 #define N_DATA_DIMS (4)
 #define N_CHAN_PROCESSED (N_CHAN_TOTAL / (CATCHER_CHAN_SUM * XENG_CHAN_SUM))
 #define N_CHAN_RECEIVED (N_CHAN_TOTAL / XENG_CHAN_SUM)
-#define N_BL_PER_WRITE (32)
+#define N_BL_PER_WRITE (24)
 //#define SKIP_DIFF
 
 #define CPTR(VAR,CONST) ((VAR)=(CONST),&(VAR))
 
-#define MAXTIMES 64
-
-static hid_t complex_id;
-static hid_t boolenumtype;
-//static hid_t boolean_id;
-
-typedef enum {
-    FALSE,
-    TRUE
-} bool_t;
+#define MAXTIMES (256);
 
 typedef struct {
     double e;
