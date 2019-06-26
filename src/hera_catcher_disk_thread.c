@@ -44,7 +44,7 @@
 
 #define CPTR(VAR,CONST) ((VAR)=(CONST),&(VAR))
 
-#define MAXTIMES (256);
+#define MAXTIMES (256)
 
 typedef struct {
     double e;
