@@ -3,7 +3,7 @@
 #default to 192 antennas
 n_ants=192
 
-while getopts ":a:h:" opt; do
+while getopts ":a:" opt; do
   case ${opt} in
     a )
       n_ants=$OPTARG
