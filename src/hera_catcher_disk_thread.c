@@ -46,6 +46,15 @@
 
 #define MAXTIMES (256)
 
+static hid_t complex_id;
+static hid_t boolenumtype;
+//static hid_t boolean_id;
+
+typedef enum {
+    FALSE,
+    TRUE
+} bool_t;
+
 typedef struct {
     double e;
     double n;
