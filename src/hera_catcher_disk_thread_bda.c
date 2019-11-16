@@ -97,7 +97,7 @@ static hid_t open_hdf5_from_template(char * sourcename, char * destname)
     int read_fd, write_fd;
     struct stat stat_buf;
     off_t offset = 0;
-    hid_t status;
+    hid_t status, fapl;
     
     read_fd = open(sourcename, O_RDONLY);
     if (read_fd < 0) {
@@ -119,7 +119,14 @@ static hid_t open_hdf5_from_template(char * sourcename, char * destname)
     close(read_fd);
     close(write_fd);
 
-    status = H5Fopen(destname, H5F_ACC_RDWR, H5P_DEFAULT);
+    // Set a list of properties to use for the chunk cache.
+    // Some of the values don't matter/are the defaults; we're just interested in
+    // setting the chache size to be much larger than a chunk size (~10MB) and
+    // making sure chunks are immediately evicted from the cache.
+    fapl = H5Pcreate(H5P_FILE_ACCESS);
+    status = H5Pset_cache(fapl, 0, 521, 10*1024*1024, 1.0);
+
+    status = H5Fopen(destname, H5F_ACC_RDWR, fapl);
     if (status < 0) {
         hashpipe_error(__FUNCTION__, "error opening %s as HDF5 file", destname);
         pthread_exit(NULL);
@@ -153,10 +160,6 @@ static void init_data_dataset(hdf5_id_t *id){
    hid_t plist = H5Pcreate(H5P_DATASET_CREATE);
    H5Pset_layout(plist, H5D_CHUNKED);
    H5Pset_chunk(plist, N_DATA_DIMS, chunk_dims);
-   // Some of the values don't matter/are the defaults; we're just interested in
-   // setting the chache size to be much larger than a chunk size (~10MB) and
-   // making sure chunks are immediate evicted from the cache.
-   H5Pset_cache(plist, 0, 521, 10485760, 1);
 
    // Now we have the dataspace properties, create the datasets
    id->visdata_did = H5Dcreate(id->data_gid, "visdata", complex_id, file_space, H5P_DEFAULT, plist, H5P_DEFAULT);
