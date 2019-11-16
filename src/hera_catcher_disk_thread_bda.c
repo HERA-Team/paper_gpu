@@ -153,6 +153,10 @@ static void init_data_dataset(hdf5_id_t *id){
    hid_t plist = H5Pcreate(H5P_DATASET_CREATE);
    H5Pset_layout(plist, H5D_CHUNKED);
    H5Pset_chunk(plist, N_DATA_DIMS, chunk_dims);
+   // Some of the values don't matter/are the defaults; we're just interested in
+   // setting the chache size to be much larger than a chunk size (~10MB) and
+   // making sure chunks are immediate evicted from the cache.
+   H5Pset_cache(plist, 0, 521, 10485760, 1);
 
    // Now we have the dataspace properties, create the datasets
    id->visdata_did = H5Dcreate(id->data_gid, "visdata", complex_id, file_space, H5P_DEFAULT, plist, H5P_DEFAULT);
