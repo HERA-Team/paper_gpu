@@ -132,6 +132,7 @@ static hid_t open_hdf5_from_template(char * sourcename, char * destname)
         pthread_exit(NULL);
     }
 
+    status = H5Pclose(fapl);
     return status;
 }
 
