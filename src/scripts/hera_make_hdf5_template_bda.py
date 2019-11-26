@@ -176,15 +176,13 @@ def create_header(h5, config, use_cm=False, use_redis=False):
         r = redis.Redis("redishost")
         fenginfo = r.hgetall("init_configuration")
         corr_to_hera_map = get_corr_to_hera_map(r, nants_data=192, nants=192)
-        for n in range(baselines.shape[0]):
-            baselines[n] = [corr_to_hera_map[baselines[n,0]], corr_to_hera_map[baselines[n,1]]]
-        ant_1_array = np.array([x for (x,y) in baselines])
-        ant_2_array = np.array([y for (x,y) in baselines])
-
     else:
         fenginfo = None
-        # Use impossible antenna numbers to indicate they're not really valid
-        corr_to_hera_map = np.arange(NANTS, NANTS+NANTS_DATA)
+        corr_to_hera_map = range(192)
+    for n in range(baselines.shape[0]):
+        baselines[n] = [corr_to_hera_map[baselines[n,0]], corr_to_hera_map[baselines[n,1]]]
+    ant_1_array = np.array([x for (x,y) in baselines])
+    ant_2_array = np.array([y for (x,y) in baselines])
 
     header = h5.create_group("Header")
     header.create_dataset("Nants_data", dtype="<i8", data=NANTS_DATA)

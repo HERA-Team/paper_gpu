@@ -34,6 +34,8 @@ parser.add_argument('-t', dest='hdf5template', type=str, default='/tmp/template.
                     help='Place to put HDF5 header template file')
 parser.add_argument('--nobda', dest='nobda', action='store_true', default=False,
                     help='Use the baseline dependent averaging version')
+parser.add_argument('--nodatabase', dest='nodatabase', action='store_true', default=False,
+                    help='Don\'t try to get configuration from the site database.')
 parser.add_argument('--runtweak', dest='runtweak', action='store_true', default=False,
                     help='Run the tweaking script %s on X-hosts prior to starting the correlator' % perf_tweaker)
 parser.add_argument('--redislog', dest='redislog', action='store_true', default=False,
@@ -75,16 +77,25 @@ time.sleep(15)
 # Generate the BDA config file and upload to redis
 if not args.nobda:
     print 'Create configuration file'
-    run_on_hosts([args.host], python_source_cmd + bda_config_cmd + ['-c','-r', '/tmp/bdaconfig.txt'], wait=True)
-    os.system('scp "%s:%s" "%s" ' % ('hera-sn1', '/tmp/bdaconfig.txt','/tmp/bdaconfig.txt') )
+    if args.nodatabase:
+        run_on_hosts([args.host], python_source_cmd + bda_config_cmd + ['/tmp/bdaconfig.txt'], wait=True)
+    else:
+        run_on_hosts([args.host], python_source_cmd + bda_config_cmd + ['-c','-r', '/tmp/bdaconfig.txt'], wait=True)
+    os.system('scp "%s:%s" "%s" ' % (args.host, '/tmp/bdaconfig.txt','/tmp/bdaconfig.txt') )
     
 time.sleep(10)
 
 # Generate the meta-data template
 if not args.nobda:
-   run_on_hosts([args.host], python_source_cmd + ['hera_make_hdf5_template_bda.py'] + ['-c', '-r', args.hdf5template], wait=True)
+   if args.nodatabase:
+       run_on_hosts([args.host], python_source_cmd + ['hera_make_hdf5_template_bda.py'] + [args.hdf5template], wait=True)
+   else:
+       run_on_hosts([args.host], python_source_cmd + ['hera_make_hdf5_template_bda.py'] + ['-c', '-r', args.hdf5template], wait=True)
 else:
-   run_on_hosts([args.host], python_source_cmd + template_cmd + ['-c', '-r', args.hdf5template], wait=True)
+   if args.nodatabase:
+       run_on_hosts([args.host], python_source_cmd + template_cmd + [args.hdf5template], wait=True)
+   else:
+       run_on_hosts([args.host], python_source_cmd + template_cmd + ['-c', '-r', args.hdf5template], wait=True)
 
 #Configure runtime parameters
 catcher_dict = {

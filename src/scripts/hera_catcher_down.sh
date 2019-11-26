@@ -8,7 +8,12 @@ exit $1
 }
 
 # Name of PAPER server
-catcherhost=hera-sn1
+if [ -z "$1" ]
+  then
+    catcherhost=hera-sn1
+else
+  catcherhost=$1
+fi
 
 # Stop hashpipe-redis gateways
 echo "stopping hashpipe-redis gateways"

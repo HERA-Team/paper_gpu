@@ -39,9 +39,11 @@
 #define N_DATA_DIMS (4)
 #define N_CHAN_PROCESSED (N_CHAN_TOTAL / (CATCHER_CHAN_SUM_BDA))
 #define N_CHAN_RECEIVED (N_CHAN_TOTAL)
-#define N_BL_PER_WRITE (32)
+#define N_BL_PER_WRITE (8)
 
 #define CPTR(VAR,CONST) ((VAR)=(CONST),&(VAR))
+
+#define SKIP_TRANSPOSE
 
 static hid_t complex_id;
 static hid_t boolenumtype;
@@ -981,7 +983,9 @@ static void *run(hashpipe_thread_args_t * args)
           stop_bcnt = header.bcnt[bctr+N_BL_PER_WRITE-1]; 
 
           clock_gettime(CLOCK_MONOTONIC, &t_start);
+#ifndef SKIP_TRANSPOSE
           compute_sum_diff(db_in32, bl_buf_sum, bl_buf_diff, bctr);
+#endif
           clock_gettime(CLOCK_MONOTONIC, &t_stop);
 
           t_ns = ELAPSED_NS(t_start, t_stop);

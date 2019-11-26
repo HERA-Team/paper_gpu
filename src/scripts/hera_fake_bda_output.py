@@ -86,12 +86,10 @@ while True:
                    b = mcnt+((xeng_id//Nx)*2)
                    pkt = struct.pack('>1Q2I4H', b, bcnt, 0, a0, a1, xeng_id, 4096) + int_bin['data'][nb]
                    sock.sendto(pkt, (udp_ip, udp_port))
-                   time.sleep(sleep_time)
                    pkt = struct.pack('>1Q2I4H', b, bcnt, 1, a0, a1, xeng_id, 4096) + int_bin['data'][nb]
                    sock.sendto(pkt, (udp_ip, udp_port))
-                   time.sleep(sleep_time)
                    pkt = struct.pack('>1Q2I4H', b, bcnt, 2, a0, a1, xeng_id, 4096) + int_bin['data'][nb]
                    sock.sendto(pkt, (udp_ip, udp_port))
-                   time.sleep(sleep_time)
+                   #time.sleep(sleep_time)
                bcnt += 1
 

@@ -30,6 +30,8 @@ parser.add_argument('-n', dest='nfiles', type=int, default=10, help='Number of f
 parser.add_argument('-m', dest='msperfile', type=int, default=60000, help='Number of ms of data per file')
 parser.add_argument('--tag', dest='tag', type=str, default='none', help='A descriptive tag to go into data files')
 parser.add_argument('-t', dest='hdf5template', type=str, default='/tmp/template.h5', help='Place to put HDF5 header template file')
+parser.add_argument('--nodatabase', dest='nodatabase', action='store_true', default=False,
+                    help='Don\'t try to get configuration from the site database.')
 
 args = parser.parse_args()
 
@@ -39,7 +41,10 @@ if len(args.tag) > 127:
   raise ValueError("Tag argument must be <127 characters!")
 
 # Generate the meta-data template
-run_on_hosts([args.host], python_source_cmd + [';'] + template_cmd + ['-c', '-r', args.hdf5template], wait=True)
+if args.nodatabase:
+    run_on_hosts([args.host], python_source_cmd + [';'] + template_cmd + [args.hdf5template], wait=True)
+else:
+    run_on_hosts([args.host], python_source_cmd + [';'] + template_cmd + ['-c', '-r', args.hdf5template], wait=True)
 
 
 #Configure runtime parameters
