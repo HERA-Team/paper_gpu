@@ -98,7 +98,7 @@ static hid_t open_hdf5_from_template(char * sourcename, char * destname)
     int read_fd, write_fd;
     struct stat stat_buf;
     off_t offset = 0;
-    hid_t status;
+    hid_t status, fapl;
     
     read_fd = open(sourcename, O_RDONLY);
     if (read_fd < 0) {
@@ -120,12 +120,20 @@ static hid_t open_hdf5_from_template(char * sourcename, char * destname)
     close(read_fd);
     close(write_fd);
 
-    status = H5Fopen(destname, H5F_ACC_RDWR, H5P_DEFAULT);
+    // Set a list of properties to use for the chunk cache.
+    // Some of the values don't matter/are the defaults; we're just interested in
+    // setting the chache size to be much larger than a chunk size (~10MB) and
+    // making sure chunks are immediately evicted from the cache.
+    fapl = H5Pcreate(H5P_FILE_ACCESS);
+    status = H5Pset_cache(fapl, 0, 521, 10*1024*1024, 1.0);
+
+    status = H5Fopen(destname, H5F_ACC_RDWR, fapl);
     if (status < 0) {
         hashpipe_error(__FUNCTION__, "error opening %s as HDF5 file", destname);
         pthread_exit(NULL);
     }
 
+    status = H5Pclose(fapl);
     return status;
 }
 
