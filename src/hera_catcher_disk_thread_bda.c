@@ -39,7 +39,7 @@
 #define N_DATA_DIMS (4)
 #define N_CHAN_PROCESSED (N_CHAN_TOTAL / (CATCHER_CHAN_SUM_BDA))
 #define N_CHAN_RECEIVED (N_CHAN_TOTAL)
-#define N_BL_PER_WRITE (8)
+#define N_BL_PER_WRITE (BASELINES_PER_BLOCK)
 
 #define CPTR(VAR,CONST) ((VAR)=(CONST),&(VAR))
 
@@ -125,7 +125,7 @@ static hid_t open_hdf5_from_template(char * sourcename, char * destname)
     // setting the chache size to be much larger than a chunk size (~10MB) and
     // making sure chunks are immediately evicted from the cache.
     fapl = H5Pcreate(H5P_FILE_ACCESS);
-    status = H5Pset_cache(fapl, 0, 521, 10*1024*1024, 1.0);
+    status = H5Pset_cache(fapl, 0, 521, 1024*1024*1024, 1.0);
 
     status = H5Fopen(destname, H5F_ACC_RDWR, fapl);
     if (status < 0) {
@@ -133,7 +133,11 @@ static hid_t open_hdf5_from_template(char * sourcename, char * destname)
         pthread_exit(NULL);
     }
 
-    status = H5Pclose(fapl);
+    fapl = H5Pclose(fapl);
+    if (fapl < 0) {
+        hashpipe_error(__FUNCTION__, "error closing File access configuration");
+        pthread_exit(NULL);
+    }
     return status;
 }
 
@@ -143,6 +147,8 @@ static void init_data_dataset(hdf5_id_t *id){
 
    hsize_t data_dims[N_DATA_DIMS] = {bcnts_per_file, 1, N_CHAN_PROCESSED, N_STOKES};
    hsize_t chunk_dims[N_DATA_DIMS] = {N_BL_PER_WRITE, 1, N_CHAN_PROCESSED, N_STOKES};
+   hsize_t chunk_dims_lzf[N_DATA_DIMS] = {N_BL_PER_WRITE, 1, N_CHAN_PROCESSED, N_STOKES};
+   //hsize_t chunk_dims_lzf[N_DATA_DIMS] = {32, 1, N_CHAN_PROCESSED, N_STOKES};
 
    hid_t file_space = H5Screate_simple(N_DATA_DIMS, data_dims, NULL);
 
@@ -154,14 +160,14 @@ static void init_data_dataset(hdf5_id_t *id){
      pthread_exit(NULL);
    }
    hid_t plist_lzf = H5Pcreate(H5P_DATASET_CREATE);
-   H5Pset_chunk(plist_lzf, N_DATA_DIMS, chunk_dims);
-   H5Pset_shuffle(plist_lzf);
-   H5Pset_filter(plist_lzf, H5PY_FILTER_LZF, H5Z_FLAG_OPTIONAL, 0, NULL);
+   H5Pset_chunk(plist_lzf, N_DATA_DIMS, chunk_dims_lzf);
+   //H5Pset_shuffle(plist_lzf);
+   H5Pset_filter(plist_lzf, H5Z_FILTER_DEFLATE, H5Z_FLAG_OPTIONAL, 0, NULL);
 
    // make plist for non-compressed datasets
    hid_t plist = H5Pcreate(H5P_DATASET_CREATE);
-   H5Pset_layout(plist, H5D_CHUNKED);
-   H5Pset_chunk(plist, N_DATA_DIMS, chunk_dims);
+   //H5Pset_layout(plist, H5D_CHUNKED);
+   //H5Pset_chunk(plist, N_DATA_DIMS, chunk_dims);
 
    // Now we have the dataspace properties, create the datasets
    id->visdata_did = H5Dcreate(id->data_gid, "visdata", complex_id, file_space, H5P_DEFAULT, plist, H5P_DEFAULT);
