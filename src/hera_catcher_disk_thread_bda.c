@@ -20,6 +20,7 @@
 #include <smmintrin.h>
 #include <immintrin.h>
 #include <hiredis.h>
+#include <pthread.h>
 
 #include "hashpipe.h"
 #include "paper_databuf.h"
@@ -92,6 +93,17 @@ typedef struct {
     hid_t ant_1_array_fs;
     hid_t ant_2_array_fs;
 } hdf5_id_t;
+
+struct write_args {
+  hdf5_id_t *id;
+  hsize_t bcnt;
+  hsize_t nblts;
+  hid_t mem_space;
+  uint64_t *visdata_buf;
+  hbool_t *flags;
+  uint32_t *nsamples;
+  int thread_id;
+};
 
 static hid_t open_hdf5_from_template(char * sourcename, char * destname)
 {
@@ -515,7 +527,7 @@ static double compute_jd_from_mcnt(uint64_t mcnt, uint64_t sync_time_ms, double 
 /* 
  * Write N_BL_PER_WRITE bcnts to the dataset, at the right offset
  */
-static void write_baseline_index(hdf5_id_t *id, hsize_t bcnt, hsize_t nblts, hid_t mem_space, 
+static void write_baseline_index(hdf5_id_t *id, hsize_t bcnt, hsize_t nblts, hid_t mem_space,
                                  uint64_t *visdata_buf, hbool_t *flags, uint32_t *nsamples)
 {
     hsize_t start[N_DATA_DIMS] = {bcnt, 0, 0, 0};
@@ -546,6 +558,15 @@ static void write_baseline_index(hdf5_id_t *id, hsize_t bcnt, hsize_t nblts, hid
     }
 
 }
+
+/*
+ * Call to write_baseline_index with arguments contained in a struct, suitable for calling with pthread_create
+ */
+ void write_baseline_index_threaded(void *args) {
+   struct write_args *d = args;
+   fprintf(stdout, "Started baseline write (%d)!\n", d->thread_id);
+   write_baseline_index(d->id, d->bcnt, d->nblts, d->mem_space, d->visdata_buf, d->flags, d->nsamples);
+ }
 
 
 /* 
@@ -801,6 +822,10 @@ static void *run(hashpipe_thread_args_t * args)
     hsize_t dims[N_DATA_DIMS] = {N_BL_PER_WRITE, 1, N_CHAN_PROCESSED, N_STOKES};
     hid_t mem_space_bl_per_write = H5Screate_simple(N_DATA_DIMS, dims, NULL);
 
+    // arguments for write threads
+    struct write_args write_args_sum, write_args_diff;
+    pthread_t write_thread_sum, write_thread_diff;
+
     while (run_threads()) {
         // Note waiting status,
         hashpipe_status_lock_safe(&st);
@@ -1019,12 +1044,33 @@ static void *run(hashpipe_thread_args_t * args)
                 file_offset = strt_bcnt - curr_file_bcnt;
 
                 clock_gettime(CLOCK_MONOTONIC, &w_start);
-                write_baseline_index(&sum_file, file_offset, N_BL_PER_WRITE, mem_space_bl_per_write, 
-                                    (uint64_t *)bl_buf_sum, flags, nsamples);
-                #ifndef SKIP_DIFF
-                write_baseline_index(&diff_file, file_offset, N_BL_PER_WRITE, mem_space_bl_per_write, 
-                                    (uint64_t *)bl_buf_diff, flags, nsamples);
-                #endif
+                write_args_sum.id= &sum_file;
+                write_args_sum.bcnt = file_offset;
+                write_args_sum.nblts = N_BL_PER_WRITE;
+                write_args_sum.mem_space = mem_space_bl_per_write;
+                write_args_sum.visdata_buf = (uint64_t *)bl_buf_sum;
+                write_args_sum.flags = flags;
+                write_args_sum.nsamples = nsamples;
+                write_args_sum.thread_id = 0;
+
+
+                if (pthread_create(&write_thread_sum, NULL, (void *)&write_baseline_index_threaded, (void *)(&write_args_sum))) {
+                  fprintf(stderr, "Failed to create sum file write thread\n");
+                }
+#ifndef SKIP_DIFF
+                write_args_diff.id= &diff_file;
+                write_args_diff.bcnt = file_offset;
+                write_args_diff.nblts = N_BL_PER_WRITE;
+                write_args_diff.mem_space = mem_space_bl_per_write;
+                write_args_diff.visdata_buf = (uint64_t *)bl_buf_diff;
+                write_args_diff.flags = flags;
+                write_args_diff.nsamples = nsamples;
+                write_args_diff.thread_id = 1;
+
+                if (pthread_create(&write_thread_diff, NULL, (void *)&write_baseline_index_threaded, (void *)(&write_args_diff))) {
+                  fprintf(stderr, "Failed to create diff file write thread\n");
+                }
+#endif
 
                 clock_gettime(CLOCK_MONOTONIC, &w_stop);
 
@@ -1077,10 +1123,10 @@ static void *run(hashpipe_thread_args_t * args)
                     file_offset = strt_bcnt - curr_file_bcnt;
 
                     clock_gettime(CLOCK_MONOTONIC, &w_start);
-                    write_baseline_index(&sum_file, file_offset, nbls, mem_space_bl_per_write, 
+                    write_baseline_index(&sum_file, file_offset, nbls, mem_space_bl_per_write,
                                         (uint64_t *)bl_buf_sum, flags, nsamples);
                     #ifndef SKIP_DIFF
-                      write_baseline_index(&diff_file, file_offset, nbls, mem_space_bl_per_write, 
+                    write_baseline_index(&diff_file, file_offset, nbls, mem_space_bl_per_write,
                                           (uint64_t *)bl_buf_diff, flags, nsamples);
                     #endif
 
@@ -1203,10 +1249,10 @@ static void *run(hashpipe_thread_args_t * args)
                 }
                 
                 clock_gettime(CLOCK_MONOTONIC, &w_start);
-                write_baseline_index(&sum_file, file_offset, nbls, mem_space_bl_per_write, 
+                write_baseline_index(&sum_file, file_offset, nbls, mem_space_bl_per_write,
                                     (uint64_t *)bl_buf_sum, flags, nsamples);
                 #ifndef SKIP_DIFF
-                  write_baseline_index(&diff_file, file_offset, nbls, mem_space_bl_per_write, 
+                write_baseline_index(&diff_file, file_offset, nbls, mem_space_bl_per_write,
                                       (uint64_t *)bl_buf_diff, flags, nsamples);
                 #endif
                 clock_gettime(CLOCK_MONOTONIC, &w_stop); 
