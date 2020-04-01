@@ -75,53 +75,29 @@ def get_cm_info():
 
 def get_antpos_enu(antpos, lat, lon, alt):
     """
-    Compute the antenna positions in ENU coordinates from rotECEF.
+    Compute the antenna positions in ENU coordinates from relative ECEF.
 
-    Args:
-      antpos -- array of antenna positions. Should have shape (Nants, 3).
-      lat (float) -- telescope latitude, in radians
-      lon (float) -- telescope longitude, in radians
-      alt (float) -- telescope altitude, in meters
+    Parameters
+    ----------
+    antpos : ndarray, shape (Nants, 3)
+        Array of antenna positions in ECEF relative to array center.
+    lat : float
+        Telescope latitude, in radians.
+    lon : float
+        Telescope longitude, in radians.
+    alt : float
+        Telescope altitude, in meters.
 
-    Returns:
-      enu -- array of antenna positions in ENU frame. Has shape (Nants, 3).
+    Returns
+    -------
+    enu : ndarray, shape (Nants, 3)
+        Array of antenna positions in ENU frame.
     """
     import pyuvdata.utils as uvutils
-    ecef = uvutils.ECEF_from_rotECEF(antpos, lon)
-    enu  = uvutils.ENU_from_ECEF(ecef, lat, lon, alt)
+    cofa_xyz = uvutils.XYZ_from_LatLonAlt(lat, lon, alt)
+    antpos += cofa_xyz
+    enu  = uvutils.ENU_from_ECEF(antpos, lat, lon, alt)
     return enu
-
-def get_antpos_ecef(antpos, lon):
-    """
-    Compute the antenna positions in ECEF coordinates from rotECEF
-
-    Args:
-      antpos -- array of antenna positions. Should have shape (Nants, 3).
-      lon (float) -- telescope longitude, in radians
-
-    Returns:
-      ecef -- array of antenna positions in ECEF frame. Has shape (Nants, 3)
-    """
-    import pyuvdata.utils as uvutils
-    ecef = uvutils.ECEF_from_rotECEF(antpos, lon)
-    return ecef
-
-def get_telescope_location_ecef(lat, lon, alt):
-    """
-    Compute the telescope location in ECEF coordinates from lat/lon/alt.
-
-    Args:
-      lat (float) -- telescope latitude, in radians
-      lon (float) -- telescope longitude, in radians
-      alt (float) -- telescope altitude, in meters
-
-    Returns:
-       ecef -- len(3) array of x,y,z values of telescope location in ECEF
-           coordinates, in meters.
-    """
-    import pyuvdata.utils as uvutils
-    return uvutils.XYZ_from_LatLonAlt(lat, lon, alt)
-
 
 def create_header(h5, config, use_cm=False, use_redis=False):
     """
@@ -223,11 +199,7 @@ def create_header(h5, config, use_cm=False, use_redis=False):
         lat = cminfo['cofa_lat'] * np.pi / 180.0
         lon = cminfo['cofa_lon'] * np.pi / 180.0
         alt = cminfo['cofa_alt']
-        telescope_location_ecef = get_telescope_location_ecef(lat, lon, alt)
-        antpos_ecef = get_antpos_ecef(cminfo["antenna_positions"], lon)
-        header.create_dataset("altitude",    dtype="<f8", data=cminfo['cofa_alt'])
         ant_pos = np.zeros([NANTS_DATA,3], dtype=np.float64)
-        ant_pos_enu = np.zeros([NANTS_DATA,3], dtype=np.float64)
         ant_pos_uvw = np.zeros([NANTS,3], dtype=np.float64)
         ant_names = ["NONE"]*NANTS_DATA
         ant_nums = [-1]*NANTS_DATA
@@ -241,10 +213,9 @@ def create_header(h5, config, use_cm=False, use_redis=False):
         for n, ant in enumerate(cminfo["antenna_numbers"]):
             if ant not in ant_1_array:
                 continue
-            ant_pos[idx]     = antpos_ecef[n] - telescope_location_ecef
+            ant_pos[idx]     = cminfo["antenna_positions"][n]
             ant_names[idx]   = np.string_(cminfo["antenna_names"][n])
             ant_nums[idx]    = cminfo["antenna_numbers"][n]
-            ant_pos_enu[idx] = cminfo["antenna_positions_enu"][n]
             idx += 1
         # make sure we have the number we're expecting
         if idx != NANTS_DATA:
@@ -252,7 +223,6 @@ def create_header(h5, config, use_cm=False, use_redis=False):
         header.create_dataset("antenna_names",     dtype="|S5", shape=(NANTS_DATA,), data=ant_names)
         header.create_dataset("antenna_numbers",   dtype="<i8", shape=(NANTS_DATA,), data=ant_nums)
         header.create_dataset("antenna_positions",   dtype="<f8", shape=(NANTS_DATA,3), data=ant_pos)
-        header.create_dataset("antenna_positions_enu",   dtype="<f8", shape=(NANTS_DATA,3), data=ant_pos_enu)
         header.create_dataset("latitude",    dtype="<f8", data=cminfo["cofa_lat"])
         header.create_dataset("longitude",   dtype="<f8", data=cminfo["cofa_lon"])
     else:
@@ -260,7 +230,6 @@ def create_header(h5, config, use_cm=False, use_redis=False):
         header.create_dataset("antenna_names",     dtype="|S5", shape=(NANTS,), data=["NONE"]*NANTS)
         header.create_dataset("antenna_numbers",   dtype="<i8", shape=(NANTS,), data=range(NANTS))
         header.create_dataset("antenna_positions",   dtype="<f8", shape=(NANTS,3), data=np.zeros([NANTS,3]))
-        header.create_dataset("antenna_positions_enu",   dtype="<f8", shape=(NANTS,3), data=np.zeros([NANTS,3]))
         header.create_dataset("latitude",    dtype="<f8", data=0.0)
         header.create_dataset("longitude",   dtype="<f8", data=0.0)
 
