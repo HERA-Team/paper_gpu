@@ -225,6 +225,7 @@ def create_header(h5, config, use_cm=False, use_redis=False):
         header.create_dataset("antenna_positions",   dtype="<f8", shape=(NANTS_DATA,3), data=ant_pos)
         header.create_dataset("latitude",    dtype="<f8", data=cminfo["cofa_lat"])
         header.create_dataset("longitude",   dtype="<f8", data=cminfo["cofa_lon"])
+        header.create_dataset("altitude",    dtype="<f8", data=cminfo["cofa_alt"])
     else:
         header.create_dataset("altitude",    dtype="<f8", data=0.0)
         header.create_dataset("antenna_names",     dtype="|S5", shape=(NANTS,), data=["NONE"]*NANTS)
@@ -232,6 +233,7 @@ def create_header(h5, config, use_cm=False, use_redis=False):
         header.create_dataset("antenna_positions",   dtype="<f8", shape=(NANTS,3), data=np.zeros([NANTS,3]))
         header.create_dataset("latitude",    dtype="<f8", data=0.0)
         header.create_dataset("longitude",   dtype="<f8", data=0.0)
+        header.create_dataset("altitude",    dtype="<f8", data=0.0)
 
     # lst_array needs populating by receiver. Should be center of integrations in radians
     #header.create_dataset("lst_array",   dtype="<f8", data=np.zeros(n_bls))
