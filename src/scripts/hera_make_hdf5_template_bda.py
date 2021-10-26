@@ -9,6 +9,7 @@ import numpy as np
 import time
 import copy
 import redis
+import yaml
 from hera_corr_cm.handlers import add_default_log_handlers
 
 logger = add_default_log_handlers(logging.getLogger(__file__))
@@ -28,12 +29,17 @@ def get_corr_to_hera_map(r, nants_data=192, nants=352):
     # A dictionary with keys which are antenna numbers
     # of the for {<ant> :{<pol>: {'host':SNAPHOSTNAME, 'channel':INTEGER}}}
     ant_to_snap = json.loads(r.hget("corr:map", "ant_to_snap"))
+    config = yaml.load(r.hget("snap_configuration", "config"))
     #host_to_index = r.hgetall("corr:snap_ants")
     for ant, pol in ant_to_snap.items():
         hera_ant_number = int(ant)
         host = pol["n"]["host"]
         chan = pol["n"]["channel"]  # runs 0-5
-        snap_ant_chans = r.hget("corr:snap_ants", host)
+        #snap_ant_chans = r.hget("corr:snap_ants", host)
+        try:
+            snap_ant_chans = str(config['fengines'][host]['ants'])
+        except(KeyError):
+            snap_ant_chans = None
         if snap_ant_chans is None:
             logger.warning("Couldn't find antenna indices for %s" % host)
             continue
