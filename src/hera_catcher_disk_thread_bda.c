@@ -1121,7 +1121,7 @@ static void *run(hashpipe_thread_args_t * args)
                  file_cnt += 1;
 
                  // add file to M&C
-                 add_mc_obs(hdf5_sum_fname);
+                 // add_mc_obs(hdf5_sum_fname); // XXX diagnosing add_obs error
 
                  hashpipe_status_lock_safe(&st);
                  hputr4(st.buf, "FILESEC", file_duration);
