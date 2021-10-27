@@ -5,6 +5,10 @@ ERRFILE=~/xeng_start.err
 export TAG=engineering
 export CATCHERHOST=hera-sn1
 
+# Kill off anything still running
+hera_xeng_stop.sh
+
+# Start afresh
 date > $LOGFILE
 echo > $ERRFILE
 xtor_up.py --runtweak --redislog px{1..16} >> $LOGFILE 2>> $ERRFILE
