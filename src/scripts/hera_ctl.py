@@ -20,14 +20,10 @@ parser = argparse.ArgumentParser(description='Turn on and off the HERA correlato
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('action',type=str,
                     help = 'Action: "start"|"stop": start|stop the correlator.')
-parser.add_argument('-n', dest='acclen', type=int, default=64*512,
-                    help ='Number of spectra to accumulate')
 parser.add_argument('-s', dest='slices', type=int, default=2,
                     help ='Number of slices. Eg. for HERA\'s ever/odd correlator, slices=2. \
                            It is assumed that for N xhosts, hosts 1..N are slice 1, \
                            N+1..2*N are slice 2, etc.')
-parser.add_argument('-t', dest='starttime', type=float, default=time.time()+5,
-                    help ='UNIX time to start observations. Default is NOW+5s')
 parser.add_argument('-x', dest='xhosts', type=int, default=8,
                     help ='Number of GPU hosts **per slice**')
 parser.add_argument('-i', dest='xinstances_per_host', type=int, default=2,
@@ -57,7 +53,8 @@ if args.action == 'stop':
 if args.action == 'start':
     # Calculate start MCNT
     mcnt_origin = int(int(rdb['corr:feng_sync_time'])/1000.)
-    time_delay = args.starttime - mcnt_origin
+    starttime = int(rdb.get('corr:start_time'))
+    time_delay = starttime - mcnt_origin
     delay_mcnts = int(time_delay * mcnts_per_second())
     # round delay_mcnts down to an acceptable value
     round_to = MCNT_XGPU_BLOCK_SIZE * args.slices # This represents the granularity with which an integration can be started
@@ -68,13 +65,13 @@ if args.action == 'start':
     #print 'Current MCNTs are:', gpumcnts
     print('Sync time is %s' % time.ctime(mcnt_origin))
     print('MCNTs per second: %.1f' % mcnts_per_second())
-    print('Requested start time: %s' % time.ctime(args.starttime))
+    print('Requested start time: %s' % time.ctime(starttime))
     print('Trigger MCNT: %d' % trig_mcnt)
     print('Trigger time is %.1f seconds in the future (%s)' % (trig_time - time.time(), time.ctime(trig_time)))
 
     # round acc_len
-    acclen = int(args.acclen / MCNT_XGPU_BLOCK_SIZE) * MCNT_XGPU_BLOCK_SIZE
-    print('Requested accumulation length: %d' % args.acclen)
+    acclen = int(rdb.get('corr:acc_len'))
+    assert acclen % MCNT_XGPU_BLOCK_SIZE == 0 # make sure corr:acc_len is divisible by MCNT_XGPU_BLOCK_SIZE
     print('Actual accumulation length: %d' % acclen)
 
     # Use the hashpipe publish channel to update keys in all status buffers.
@@ -98,5 +95,4 @@ if args.action == 'start':
 
     rdb['corr:trig_mcnt'] = trig_mcnt
     rdb['corr:trig_time'] = trig_time
-    rdb['corr:acc_len'] = acclen
     rdb['corr:int_time'] = acclen * args.slices * mcnts_per_second()

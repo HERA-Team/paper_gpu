@@ -27,8 +27,6 @@ parser = argparse.ArgumentParser(description='Trigger data collection on the HER
 
 parser.add_argument('host', type=str, help='Host on which to capture data')
 parser.add_argument('-r', dest='redishost', type=str, default='redishost', help='Host serving redis database')
-parser.add_argument('-n', dest='nfiles', type=int, default=10, help='Number of files of data to capture')
-parser.add_argument('-m', dest='msperfile', type=int, default=60000, help='Number of ms of data per file')
 parser.add_argument('--nobda', dest='nobda', action='store_true', default=False,
                     help='Use the baseline dependent averaging version')
 parser.add_argument('--tag', dest='tag', type=str, default='none', help='A descriptive tag to go into data files')
@@ -37,6 +35,13 @@ parser.add_argument('-t', dest='hdf5template', type=str, default='/tmp/template.
 args = parser.parse_args()
 
 r = redis.Redis(args.redishost, decode_responses=True)
+acclen = int(r.get('corr:acc_len'))
+# XXX get these other variables from redis too
+# XXX maybe move whole thing to hera_set_observation.py
+XPIPES = 2
+msperfile = int(2 * 2 * (acclen * 2) * XPIPES * 2 * 8192 / 500e6 * 1000)
+obslen = int(r.get('corr:obs_len'))
+nfiles = int(1000 * obslen / msperfile)
 
 if len(args.tag) > 127:
   raise ValueError("Tag argument must be <127 characters!")
@@ -51,8 +56,8 @@ else:
 #Configure runtime parameters
 catcher_dict = {
   'HDF5TPLT' : args.hdf5template,
-  'MSPERFIL' : args.msperfile,
-  'NFILES'   : args.nfiles,
+  'MSPERFIL' : msperfile,
+  'NFILES'   : nfiles,
   'SYNCTIME' : r['corr:feng_sync_time'],
   'INTTIME'  : r['corr:acc_len'],
   'TAG'      : args.tag,
