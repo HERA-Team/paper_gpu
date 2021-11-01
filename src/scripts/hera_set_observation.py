@@ -5,6 +5,7 @@ import redis
 from astropy.time import Time, TimeDelta
 from astropy import units
 from hera_mc.utils import LSTScheduler
+import numpy as np
 
 REDISHOST = 'redishost'
 
@@ -22,7 +23,8 @@ file_duration_ms = int(2 * 2 * (acclen_calc * 2) * X_PIPES * 2 * 8192 / 500e6 * 
 file_duration_s = file_duration_ms / 1000
 t0 = Time.now() + TimeDelta(1 * units.min)
 lst_time = LSTScheduler(t0, file_duration_s)
-starttime = lst_time[0].unix * 1000
+starttime = lst_time[0].unix * 1000 #start time in ms
+starttime = int(np.round(starttime))
 
 r.set('corr:acc_len', str(acclen_calc))
 r.set('corr:start_time', str(starttime))
