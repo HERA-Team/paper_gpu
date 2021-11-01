@@ -1,5 +1,8 @@
 #! /bin/bash
 
+source ~/.bashrc
+set -e # exit with an error if any subcommand returns an error; .bashrc has such a command!
+
 LOGFILE=~/xeng_start.log
 ERRFILE=~/xeng_start.err
 export TAG=engineering
