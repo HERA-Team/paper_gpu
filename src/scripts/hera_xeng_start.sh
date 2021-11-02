@@ -4,7 +4,6 @@ source ~/.bashrc
 set -e # exit with an error if any subcommand returns an error; .bashrc has such a command!
 
 LOGFILE=~/xeng_start.log
-ERRFILE=~/xeng_start.err
 export TAG=engineering
 export CATCHERHOST=hera-sn1
 
@@ -12,12 +11,12 @@ export CATCHERHOST=hera-sn1
 hera_xeng_stop.sh
 
 # Start afresh
+echo "Starting X-Engines" > $LOGFILE
 date > $LOGFILE
-echo > $ERRFILE
-xtor_up.py --runtweak --redislog px{1..16} >> $LOGFILE 2>> $ERRFILE
-hera_catcher_up.py --redislog $CATCHERHOST >> $LOGFILE 2>> $ERRFILE
+xtor_up.py --runtweak --redislog px{1..16} &> $LOGFILE
+hera_catcher_up.py --redislog $CATCHERHOST &> $LOGFILE
 
 # XXX add arguments to set_observation
-hera_set_observation.py >> $LOGFILE 2>> $ERRFILE
-hera_ctl.py start >> $LOGFILE 2>> $ERRFILE
-hera_catcher_take_data.py --tag $TAG $CATCHERHOST >> $LOGFILE 2>> $ERRFILE
+hera_set_observation.py &> $LOGFILE
+hera_ctl.py start &> $LOGFILE
+hera_catcher_take_data.py --tag $TAG $CATCHERHOST &> $LOGFILE
