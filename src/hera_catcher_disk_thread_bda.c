@@ -643,6 +643,31 @@ static void add_mc_obs(char *fname)
   }
 }
 
+static void add_mc_obs_pthread(char *fname)
+{
+  char cmd[256];
+  int err;
+
+  // explicitly run this in the background
+  pthread_detach(pthread_self());
+
+  fprintf(stdout, "Adding observation %s to M&C\n", fname);
+  // Launch (hard-coded) python script in the background and pass in filename
+  sprintf(cmd, "/home/hera/hera-venv/envs/hera/bin/mc_add_observation.py %s", fname);
+  err = system(cmd);
+  if (err != 0) {
+    fprintf(stderr, "Error adding observation %s to M&C\n", fname);
+  } else {
+    // Add to rtp_launch_record table
+    sprintf(cmd, "/home/hera/hera-venv/envs/hera/bin/mc_rtp_launch_record.py %s", fname);
+    err = system(cmd);
+    if (err != 0) {
+      fprintf(stderr, "Error adding observation %s to RTP\n", fname);
+    }
+  }
+  pthread_exit(NULL);
+}
+
 static int init(hashpipe_thread_args_t *args)
 {
     //hashpipe_status_t st = args->st;
@@ -765,6 +790,8 @@ static void *run(hashpipe_thread_args_t * args)
     int auto_ants_filled = 0;
     uint16_t ant;
     herr_t status;
+    pthread_t thread_id; // for calling hera_mc command
+    int rc;
 
     hdf5_id_t sum_file;
     #ifndef SKIP_DIFF
@@ -1122,6 +1149,10 @@ static void *run(hashpipe_thread_args_t * args)
 
                  // add file to M&C
                  // add_mc_obs(hdf5_sum_fname); // XXX diagnosing add_obs error
+                 rc = pthread_create(&thread_id, NULL, add_mc_obs_pthread, hdf5_sum_fname);
+                 if (rc) {
+                   fprintf(stderr, "Error launching M&C thread\n");
+                 }
 
                  hashpipe_status_lock_safe(&st);
                  hputr4(st.buf, "FILESEC", file_duration);
