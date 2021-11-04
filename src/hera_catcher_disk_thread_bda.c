@@ -722,6 +722,7 @@ static void *run(hashpipe_thread_args_t * args)
     char hdf5_diff_fname[128];
     char hdf5_sum_fname[128];
     char data_directory[128];
+    char hdf5_mc_fname[128];
 
     // Variables for sync time and computed gps time / JD
     uint64_t sync_time_ms = 0;
@@ -1149,7 +1150,8 @@ static void *run(hashpipe_thread_args_t * args)
 
                  // add file to M&C
                  // add_mc_obs(hdf5_sum_fname); // XXX diagnosing add_obs error
-                 rc = pthread_create(&thread_id, NULL, add_mc_obs_pthread, hdf5_sum_fname);
+                 strcpy(hdf5_mc_fname, hdf5_sum_fname);
+                 rc = pthread_create(&thread_id, NULL, add_mc_obs_pthread, hdf5_mc_fname);
                  if (rc) {
                    fprintf(stderr, "Error launching M&C thread\n");
                  }
