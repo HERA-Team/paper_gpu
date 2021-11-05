@@ -1,6 +1,10 @@
 #! /bin/bash
-source ~/.bashrc
-set -e # exit with an error if any subcommand returns an error; .bashrc has such a command!
+
+# set PATH explicitly
+export PATH="/usr/local/bin:/usr/bin:/bin"
+
+# source conda environment
+source ~/hera-venv/bin/activate
 
 hera_catcher_stop_data.py hera-sn1
 hera_ctl.py stop
