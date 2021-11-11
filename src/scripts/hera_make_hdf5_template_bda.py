@@ -29,7 +29,7 @@ def get_corr_to_hera_map(r, nants_data=192, nants=352):
     # A dictionary with keys which are antenna numbers
     # of the for {<ant> :{<pol>: {'host':SNAPHOSTNAME, 'channel':INTEGER}}}
     ant_to_snap = json.loads(r.hget("corr:map", "ant_to_snap"))
-    config = yaml.load(r.hget("snap_configuration", "config"))
+    config = yaml.safe_load(r.hget("snap_configuration", "config"))
     #host_to_index = r.hgetall("corr:snap_ants")
     for ant, pol in ant_to_snap.items():
         hera_ant_number = int(ant)

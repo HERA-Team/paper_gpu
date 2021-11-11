@@ -12,8 +12,8 @@ REDISHOST = 'redishost'
 r = redis.Redis(REDISHOST, decode_responses=True)
 
 # observation length in seconds
-OBSLEN = 7200  # 2 hours
-
+#OBSLEN = 7200  # 2 hours
+OBSLEN = 12*3600 # 12 hours  11 Nov 2021 DCJ
 # set a start time for the catcher for 1 minute from now
 acclen = 147456
 acclen_calc = acclen // 4 # XXX figure out where magic 4 comes from

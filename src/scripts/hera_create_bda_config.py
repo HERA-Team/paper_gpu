@@ -28,7 +28,7 @@ def get_hera_to_corr_ants(r, ants=None):
     """
     # dictionary keys are bytes, not strings
     ant_to_snap = json.loads(r.hgetall("corr:map")['ant_to_snap'])
-    config = yaml.load(r.hget("snap_configuration", "config"))
+    config = yaml.safe_load(r.hget("snap_configuration", "config"))
     corr_nums = []
     if ants is None:
         ants = [int(a) for a in ant_to_snap.keys()]
