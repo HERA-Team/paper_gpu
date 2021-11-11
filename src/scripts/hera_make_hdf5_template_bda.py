@@ -172,7 +172,7 @@ def create_header(h5, config, use_cm=False, use_redis=False):
 
     #Load config file
     N_MAX_INTTIME = 8
-    config = np.loadtxt(config, dtype=np.int)
+    config = np.loadtxt(config, dtype=int)
     baselines = []
     integration_bin = []
 
