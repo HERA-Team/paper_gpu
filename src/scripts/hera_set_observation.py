@@ -7,13 +7,22 @@ from astropy import units
 from hera_mc.utils import LSTScheduler
 import numpy as np
 
-REDISHOST = 'redishost'
 
-r = redis.Redis(REDISHOST, decode_responses=True)
+import argparse
+
+parser = argparse.ArgumentParser(description='Schedule an observation at next available LST bin',
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--obslen', type=float, default=1,
+                    help ='Observation length in hours. default 1')
+parser.add_argument('--redishost', dest='redishost',type=str, default='redishost',
+                    help ='redis host. default=redishost')
+args = parser.parse_args()
+
+
+r = redis.Redis(args.redishost, decode_responses=True)
 
 # observation length in seconds
-#OBSLEN = 7200  # 2 hours
-OBSLEN = 12*3600 # 12 hours  11 Nov 2021 DCJ
+OBSLEN = args.obslen*3600 
 # set a start time for the catcher for 1 minute from now
 acclen = 147456
 acclen_calc = acclen // 4 # XXX figure out where magic 4 comes from
