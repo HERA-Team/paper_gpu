@@ -22,7 +22,7 @@ args = parser.parse_args()
 r = redis.Redis(args.redishost, decode_responses=True)
 
 # observation length in seconds
-OBSLEN = args.obslen*3600 
+OBSLEN = int(args.obslen * 3600) # make integer for redis
 # set a start time for the catcher for 1 minute from now
 acclen = 147456
 acclen_calc = acclen // 4 # XXX figure out where magic 4 comes from

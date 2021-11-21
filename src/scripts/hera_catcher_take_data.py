@@ -40,7 +40,7 @@ acclen = int(r.get('corr:acc_len'))
 # XXX maybe move whole thing to hera_set_observation.py
 XPIPES = 2
 msperfile = int(2 * 2 * (acclen * 2) * XPIPES * 2 * 8192 / 500e6 * 1000)
-obslen = int(r.get('corr:obs_len'))
+obslen = int(float(r.get('corr:obs_len'))) # float cast for more robust string conversion
 nfiles = int(1000 * obslen / msperfile)
 
 if len(args.tag) > 127:
