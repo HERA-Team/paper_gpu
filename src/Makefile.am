@@ -78,6 +78,11 @@ dist_bin_SCRIPTS = scripts/paper_init.sh              \
                    scripts/tweak-perf.sh              \
                    scripts/hera_ctl.py                \
                    scripts/hera_create_bda_config.py  \
+                   scripts/hera_xeng_start.sh         \
+                   scripts/hera_xeng_stop.sh          \
+                   scripts/hera_xeng_start_maintenance.sh \
+                   scripts/hera_set_observation.py    \
+                   scripts/identify_transmitting_snaps.sh \
                    scripts/hera_make_hdf5_template.py \
                    scripts/hera_make_hdf5_template_bda.py 
 

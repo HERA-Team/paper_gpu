@@ -631,9 +631,41 @@ static void add_mc_obs(char *fname)
     err = system(cmd);
     if (err != 0) {
       fprintf(stderr, "Error adding observation %s to M&C\n", fname);
+    } else {
+      // Add to rtp_launch_record table
+      sprintf(cmd, "/home/hera/hera-venv/envs/hera/bin/mc_rtp_launch_record.py %s", fname);
+      err = system(cmd);
+      if (err != 0) {
+	fprintf(stderr, "Error adding observation %s to RTP\n", fname);
+      }
     }
     exit(0);
   }
+}
+
+static void add_mc_obs_pthread(char *fname)
+{
+  char cmd[256];
+  int err;
+
+  // explicitly run this in the background
+  pthread_detach(pthread_self());
+
+  fprintf(stdout, "Adding observation %s to M&C\n", fname);
+  // Launch (hard-coded) python script in the background and pass in filename
+  sprintf(cmd, "/home/hera/hera-venv/envs/hera/bin/mc_add_observation.py %s", fname);
+  err = system(cmd);
+  if (err != 0) {
+    fprintf(stderr, "Error adding observation %s to M&C\n", fname);
+  } else {
+    // Add to rtp_launch_record table
+    sprintf(cmd, "/home/hera/hera-venv/envs/hera/bin/mc_rtp_launch_record.py %s", fname);
+    err = system(cmd);
+    if (err != 0) {
+      fprintf(stderr, "Error adding observation %s to RTP\n", fname);
+    }
+  }
+  pthread_exit(NULL);
 }
 
 static int init(hashpipe_thread_args_t *args)
@@ -687,12 +719,16 @@ static void *run(hashpipe_thread_args_t * args)
      
     // Buffers for file name strings
     char template_fname[128];
-    char hdf5_fname[128];
+    char hdf5_diff_fname[128];
+    char hdf5_sum_fname[128];
+    char data_directory[128];
+    char hdf5_mc_fname[128];
 
     // Variables for sync time and computed gps time / JD
     uint64_t sync_time_ms = 0;
     double gps_time;
     double julian_time;
+    int int_jd;
 
     // Variables for data collection parameters
     uint32_t acc_len;
@@ -755,6 +791,8 @@ static void *run(hashpipe_thread_args_t * args)
     int auto_ants_filled = 0;
     uint16_t ant;
     herr_t status;
+    pthread_t thread_id; // for calling hera_mc command
+    int rc;
 
     hdf5_id_t sum_file;
     #ifndef SKIP_DIFF
@@ -1111,7 +1149,12 @@ static void *run(hashpipe_thread_args_t * args)
                  file_cnt += 1;
 
                  // add file to M&C
-                 add_mc_obs(hdf5_fname);
+                 // add_mc_obs(hdf5_sum_fname); // XXX diagnosing add_obs error
+                 strcpy(hdf5_mc_fname, hdf5_sum_fname);
+                 rc = pthread_create(&thread_id, NULL, add_mc_obs_pthread, hdf5_mc_fname);
+                 if (rc) {
+                   fprintf(stderr, "Error launching M&C thread\n");
+                 }
 
                  hashpipe_status_lock_safe(&st);
                  hputr4(st.buf, "FILESEC", file_duration);
@@ -1143,19 +1186,28 @@ static void *run(hashpipe_thread_args_t * args)
              file_start_t = gps_time;
              file_obs_id = (int64_t)gps_time;
 
-             sprintf(hdf5_fname, "zen.%7.5lf.sum.uvh5", julian_time);
-             fprintf(stdout, "Opening new file %s\n", hdf5_fname);
-             start_file(&sum_file, template_fname, hdf5_fname, file_obs_id, file_start_t, tag);
+             // Make a new folder for output
+             if (file_cnt == 0) {
+               int_jd = (int)julian_time;
+               sprintf(data_directory, "%d", int_jd);
+               fprintf(stdout, "Making directory %s\n", data_directory);
+               mkdir(data_directory, 0777);
+               chmod(data_directory, 0777);
+             }
+
+             sprintf(hdf5_sum_fname, "%d/zen.%7.5lf.sum.uvh5", int_jd, julian_time);
+             fprintf(stdout, "Opening new file %s\n", hdf5_sum_fname);
+             start_file(&sum_file, template_fname, hdf5_sum_fname, file_obs_id, file_start_t, tag);
              if (use_redis) {
-               redisCommand(c, "RPUSH rtp:file_list %s", hdf5_fname);
+               redisCommand(c, "RPUSH rtp:file_list %s", hdf5_sum_fname);
              }
 
              #ifndef SKIP_DIFF
-               sprintf(hdf5_fname, "zen.%7.5lf.diff.uvh5", julian_time);
-               fprintf(stdout, "Opening new file %s\n", hdf5_fname);
-               start_file(&diff_file, template_fname, hdf5_fname, file_obs_id, file_start_t, tag);
+               sprintf(hdf5_diff_fname, "%d/zen.%7.5lf.diff.uvh5", int_jd, julian_time);
+               fprintf(stdout, "Opening new file %s\n", hdf5_diff_fname);
+               start_file(&diff_file, template_fname, hdf5_diff_fname, file_obs_id, file_start_t, tag);
                if (use_redis) {
-                 redisCommand(c, "RPUSH rtp:file_list %s", hdf5_fname);
+                 redisCommand(c, "RPUSH rtp:file_list %s", hdf5_diff_fname);
                }
              #endif
 

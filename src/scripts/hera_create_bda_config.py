@@ -9,6 +9,7 @@ import numpy as np
 import time
 import copy
 import redis
+import yaml
 
 NANTS = 352
 
@@ -27,13 +28,18 @@ def get_hera_to_corr_ants(r, ants=None):
     """
     # dictionary keys are bytes, not strings
     ant_to_snap = json.loads(r.hgetall("corr:map")['ant_to_snap'])
+    config = yaml.safe_load(r.hget("snap_configuration", "config"))
     corr_nums = []
     if ants is None:
         ants = [int(a) for a in ant_to_snap.keys()]
     for a in ants:
         host = ant_to_snap['%d'%a]['n']['host']
         chan = ant_to_snap['%d'%a]['n']['channel'] # snap_input_number
-        snap_ant_chans = r.hget("corr:snap_ants", host)
+        #snap_ant_chans = r.hget("corr:snap_ants", host) # I HATE THIS
+        try:
+            snap_ant_chans = str(config['fengines'][host]['ants'])
+        except(KeyError):
+            snap_ant_chans = None
         if snap_ant_chans is None:
             continue
         corr_ant_number = json.loads(snap_ant_chans)[chan//2] #Indexes from 0-3 (ignores pol)
