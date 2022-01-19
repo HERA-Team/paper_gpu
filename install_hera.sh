@@ -1,7 +1,8 @@
 #! /bin/bash
 
 #default to 192 antennas
-n_ants=192
+#JXK updating to 352 antennas along with IBVERBS data capture.
+n_ants=352
 
 while getopts ":a:h:" opt; do
   case ${opt} in
