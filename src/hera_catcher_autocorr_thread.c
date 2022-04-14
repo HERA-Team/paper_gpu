@@ -64,13 +64,16 @@ static void *run(hashpipe_thread_args_t * args)
   }
 
   while (run_threads()){
+    printf("Threads are running\n");
     hashpipe_status_lock_safe(&st);
     // Get the integration time reported by the correlator
     hgetu4(st.buf, "INTTIME", &acc_len);
     hashpipe_status_unlock_safe(&st);
 
     // Wait for new input block to be filled
+    printf("Getting blkin=%d\n", blkin);
     while((rv=hera_catcher_autocorr_databuf_busywait_filled(db_in, blkin))!= HASHPIPE_OK){
+       printf("Got rv from busywait.\n");
        if (rv==HASHPIPE_TIMEOUT){
           hashpipe_status_lock_safe(&st);
           hputs(st.buf, status_key, "blocked_in");
@@ -82,13 +85,18 @@ static void *run(hashpipe_thread_args_t * args)
        }
     }
 
+    printf("lock_safe\n");
     hashpipe_status_lock_safe(&st);
+    printf("%s\n", status_key);
     hputs(st.buf, status_key, "writing");
+    printf("AUTOBKIN\n");
     hputi4(st.buf, "AUTOBKIN", blkin);
+    printf("unlock_safe\n");
     hashpipe_status_unlock_safe(&st);
-
+    printf("use_redis=%d\n", use_redis);
     // Write autocorrs to redis
     if(use_redis){
+      printf("Entered loop\n");
       for (ant=0; ant<N_ANTS; ant++) {
          if (db_in->block[blkin].header.ant[ant] == 1){
             for (chan=0; chan<N_CHAN_TOTAL; chan++){
