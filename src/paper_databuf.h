@@ -23,6 +23,9 @@
 // N_BYTES_PER_PACKET excludes header!
 #define N_BYTES_PER_PACKET  (N_INPUTS_PER_PACKET*N_CHAN_PER_PACKET*N_TIME_PER_PACKET)
 
+// Total number of HERA antennas (by design)
+#define N_ANTS_TOTAL         (350)
+
 // X engine sizing (from xGPU)
 #define N_ANTS               XGPU_NSTATION
 #define N_INPUTS          (2*XGPU_NSTATION)
@@ -422,7 +425,7 @@ typedef struct hera_catcher_bda_input_databuf {
  */
 
 #define BYTES_AUTOCORR_BLK  (N_CHAN_TOTAL * N_ANTS * N_STOKES * 8L)
-#define AUTOCORR_N_BLOCKS    2
+#define AUTOCORR_N_BLOCKS    4
 
 #define hera_catcher_autocorr_databuf_idx32(a) \
       ((a)*N_CHAN_TOTAL*N_STOKES*2L)
@@ -430,7 +433,7 @@ typedef struct hera_catcher_bda_input_databuf {
 typedef struct hera_catcher_autocorr_header{
   uint64_t num_ants;
   double julian_time;
-  uint8_t ant[N_ANTS]; //flag to show if this has been updated
+  uint8_t ant[N_ANTS_TOTAL]; //flag to show if this has been updated
 } hera_catcher_autocorr_header_t;
 
 typedef uint8_t hera_catcher_autocorr_header_cache_alignment[

@@ -344,7 +344,7 @@ hashpipe_databuf_t *hera_catcher_autocorr_databuf_create(int instance_id, int da
     size_t header_size = sizeof(hashpipe_databuf_t)
                        + sizeof(hashpipe_databuf_cache_alignment);
     size_t block_size  = sizeof(hera_catcher_autocorr_block_t);
-    int    n_block = CATCHER_N_BLOCKS;
+    int    n_block = AUTOCORR_N_BLOCKS;
     //fprintf(stderr, "size_t: %u, block size: %lu, nblocks size: %u\n", 
     //        (uint32_t)sizeof(size_t),(uint64_t)block_size, (uint32_t)n_block);
     //fprintf(stderr, "header size: %u, words: %lu\n", (uint32_t)header_size, 
