@@ -41,6 +41,11 @@
 #define N_CHAN_RECEIVED (N_CHAN_TOTAL)
 #define N_BL_PER_WRITE (32)
 
+// Dummy value to fill all bytes of corr_to_hera_map to indicate that it does
+// not yet contain valid data.  For 32 bit ints, this will end up as a
+// 0xaaaaaaaa value, which is negative for signed ints.
+#define INVALID_INDICATOR (0xaa)
+
 #define CPTR(VAR,CONST) ((VAR)=(CONST),&(VAR))
 
 static hid_t complex_id;
@@ -737,8 +742,9 @@ static void *run(hashpipe_thread_args_t * args)
     uint32_t trigger = 0;
     char tag[128];
     uint64_t baseline_dist[N_BDABUF_BINS];
-    uint64_t Nants;
+    uint64_t Nants = 0;
     int corr_to_hera_map[N_ANTS];
+    memset(corr_to_hera_map, INVALID_INDICATOR, N_ANTS*sizeof(int));
 
     // Init status variables
     hashpipe_status_lock_safe(&st);
@@ -864,55 +870,60 @@ static void *run(hashpipe_thread_args_t * args)
         hputi4(st.buf, "DISKBKIN", curblock_in);
         hputu8(st.buf, "DISKMCNT", header.mcnt[0]);
         hputu8(st.buf, "DISKBCNT", header.bcnt[0]);
+        hgetu8(st.buf, "BDANANT", &Nants);
         hashpipe_status_unlock_safe(&st);
 
-        /* Copy auto correlations to autocorr buffer */
+        /* Copy auto correlations to autocorr buffer iif Nants and corr_to_hera_map are valid */
+        if (Nants > 0 && (corr_to_hera_map[0] & 0xff000000) != (INVALID_INDICATOR<<24)) {
+           if (auto_ants_filled == 0){
+              // Wait for next buffer to get free
+              while ((rv= hera_catcher_autocorr_databuf_busywait_free(db_out, curblock_out)) != HASHPIPE_OK) {
+                  if (rv==HASHPIPE_TIMEOUT) {
+                      hashpipe_status_lock_safe(&st);
+                      hputs(st.buf, status_key, "blocked redis thread");
+                      hashpipe_status_unlock_safe(&st);
+                      continue;
+                  } else {
+                      hashpipe_error(__FUNCTION__, "error waiting for free databuf");
+                      pthread_exit(NULL);
+                      break;
+                  }
+              }
+              // Clear all ant flags
+              memset(db_out->block[curblock_out].header.ant, 0, sizeof(db_out->block[curblock_out].header.ant));
+           }
 
-        if (auto_ants_filled == 0){
-           // Wait for next buffer to get free
-           while ((rv= hera_catcher_autocorr_databuf_busywait_free(db_out, curblock_out)) != HASHPIPE_OK) {
-               if (rv==HASHPIPE_TIMEOUT) {
-                   hashpipe_status_lock_safe(&st);
-                   hputs(st.buf, status_key, "blocked redis thread");
-                   hashpipe_status_unlock_safe(&st);
-                   continue;
-               } else {
-                   hashpipe_error(__FUNCTION__, "error waiting for free databuf");
-                   pthread_exit(NULL);
-                   break;
+           for (bctr=0; bctr < BASELINES_PER_BLOCK; bctr++){
+               // Autocorr blocks are indexed by antennas numbers (not corr numbers)
+               ant = corr_to_hera_map[header.ant_pair_0[bctr]];
+               if(ant > N_ANTS_TOTAL-1) {
+                  // Should "never" happen so don't worry about throttling this message
+                  hashpipe_warn(__FUNCTION__, "antenna number %u exceeds N_ANTS_TOTAL-1 %d", ant, (N_ANTS_TOTAL-1));
+               }
+               if((header.ant_pair_0[bctr] == header.ant_pair_1[bctr]) && (db_out->block[curblock_out].header.ant[ant]==0)){
+                  offset_in = hera_catcher_bda_input_databuf_by_bcnt_idx32(bctr, 0);
+                  offset_out = hera_catcher_autocorr_databuf_idx32(ant);
+                  memcpy((db_out->block[curblock_out].data + offset_out), (db_in32 + offset_in), N_CHAN_TOTAL*N_STOKES*2*sizeof(uint32_t));
+                  auto_ants_filled++;
+                  db_out->block[curblock_out].header.ant[ant] = 1;
                }
            }
-           for (i=0; i<N_ANTS; i++){
-               db_out->block[curblock_out].header.ant[i] = 0;
+
+           // If you have autocorrs of all antennas
+           // Mark output block as full and advance
+           if (auto_ants_filled >= Nants){
+              // Update databuf headers
+              db_out->block[curblock_out].header.num_ants = Nants;
+              db_out->block[curblock_out].header.julian_time = compute_jd_from_mcnt(header.mcnt[bctr-1], sync_time_ms, 2);
+              if (hera_catcher_autocorr_databuf_set_filled(db_out, curblock_out) != HASHPIPE_OK) {
+                 hashpipe_error(__FUNCTION__, "error marking out databuf %d full", curblock_out);
+                 pthread_exit(NULL);
+              }
+              curblock_out = (curblock_out + 1) % AUTOCORR_N_BLOCKS;
+              auto_ants_filled = 0;
            }
         }
 
-        for (bctr=0; bctr < BASELINES_PER_BLOCK; bctr++){
-            // Autocorr blocks are indexed by antennas numbers (not corr numbers)
-            ant = corr_to_hera_map[header.ant_pair_0[bctr]];
-            if((header.ant_pair_0[bctr] == header.ant_pair_1[bctr]) && (db_out->block[curblock_out].header.ant[ant]==0)){
-               offset_in = hera_catcher_bda_input_databuf_by_bcnt_idx32(bctr, 0);
-               offset_out = hera_catcher_autocorr_databuf_idx32(ant);
-               memcpy((db_out->block[curblock_out].data + offset_out), (db_in32 + offset_in), N_CHAN_TOTAL*N_STOKES*2*sizeof(uint32_t));
-               auto_ants_filled++;
-               db_out->block[curblock_out].header.ant[ant] = 1;
-            } 
-        }
-
-        // If you have autocorrs of all antennas
-        // Mark output block as full and advance
-        if (auto_ants_filled >= Nants){
-           // Update databuf headers
-           db_out->block[curblock_out].header.num_ants = Nants;
-           db_out->block[curblock_out].header.julian_time = compute_jd_from_mcnt(header.mcnt[bctr-1], sync_time_ms, 2);
-           if (hera_catcher_autocorr_databuf_set_filled(db_out, curblock_out) != HASHPIPE_OK) {
-              hashpipe_error(__FUNCTION__, "error marking out databuf %d full", curblock_out);
-              pthread_exit(NULL);
-           }
-           curblock_out = (curblock_out + 1) % AUTOCORR_N_BLOCKS;
-           auto_ants_filled = 0; 
-        }
-        
         // reset elapsed time counters
         elapsed_w_ns = 0.0;
         elapsed_t_ns = 0.0;
