@@ -17,6 +17,7 @@ setup(
     packages=['paper_gpu'],
     package_dir={'paper_gpu': 'src'},
     scripts=glob.glob('scripts/*.py') + glob.glob('scripts/*.sh'),
+    include_package_data=True,
 )
 
 ver = get_version(root="..", local_scheme="dirty-tag")
