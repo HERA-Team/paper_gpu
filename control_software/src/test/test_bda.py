@@ -9,11 +9,11 @@ class Test_BDA_Config(object):
 
     def setup_method(self):
         # load in value of redis['corr:map']
-        with f as open(CORR_MAP, 'r'):
+        with open(CORR_MAP, 'r') as f:
             corr_map_str = f.read()
         self.corr_map = json.loads(corr_map_str)
         # load in value of redis['snap_configuration']
-        with f as open(SNAP_CONFIG, 'r'):
+        with open(SNAP_CONFIG, 'r') as f:
             config_str = f.read()
         self.config = yaml.safe_load(config_str)
 
