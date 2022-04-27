@@ -79,4 +79,8 @@ hera_write_hdf5_CFLAGS = -O3 -Wall -Werror -fno-strict-aliasing -mavx2 -march=na
 hera_write_hdf5_LDADD = -lrt -lpthread -lsz -lz -ldl -lm
 hera_write_hdf5_LDFLAGS = -L/usr/lib/x86_64-linux-gnu/hdf5/serial /usr/lib/x86_64-linux-gnu/hdf5/serial/libhdf5_hl.a /usr/lib/x86_64-linux-gnu/hdf5/serial/libhdf5.a
 
+# Installed scripts
+dist_bin_SCRIPTS = scripts/tweak-perf.sh              \
+                   scripts/tweak-perf-sn.sh
+
 # vi: set ts=8 noet :
