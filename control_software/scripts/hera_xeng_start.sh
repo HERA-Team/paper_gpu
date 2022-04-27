@@ -4,7 +4,7 @@
 export PATH="/usr/local/bin:/usr/bin:/bin"
 
 # source conda environment
-source ~/hera-venv/bin/activate
+source ~/hera-venv/bin/activate hera
 
 LOGFILE=~/xeng_start.log
 export TAG=science
