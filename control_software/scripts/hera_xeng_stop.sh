@@ -1,8 +1,5 @@
 #! /bin/bash
 
-# set PATH explicitly
-export PATH="/usr/local/bin:/usr/bin:/bin"
-
 # source conda environment
 source ~/hera-venv/bin/activate hera
 
