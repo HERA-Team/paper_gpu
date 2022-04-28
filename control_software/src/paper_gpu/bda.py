@@ -29,10 +29,12 @@ def get_hera_to_corr_ants(corr_map, snap_config):
 
     Returns
     -------
+    corr_nums : list of int
+        The correlator input indices corresponding to HERA antenna numbers.
     """
-    ant_to_snap = corr_map["ant_to_snap"]
+    ant_to_snap = json.loads(corr_map["ant_to_snap"])
     ants = [int(a) for a in ant_to_snap.keys()]
-
+    corr_nums = []
     for a in ants:
         host = ant_to_snap['%d'%a]['n']['host']
         chan = ant_to_snap['%d'%a]['n']['channel'] # snap_input_number

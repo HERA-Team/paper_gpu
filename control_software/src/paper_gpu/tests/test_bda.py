@@ -34,8 +34,9 @@ def config_files():
 def test_parse_corr_map(config_files):
     corr_map, config = config_files
     corr_map = bda.get_hera_to_corr_ants(corr_map, config)
-    print(corr_map)
 
-    assert True
+    # make sure the output is the type and length we expect
+    assert type(corr_map) is list
+    assert len(corr_map) == 143
 
     return
