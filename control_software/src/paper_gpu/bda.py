@@ -11,7 +11,6 @@ from hera_corr_cm import redis_cm
 
 def get_cm_info():
     """Return cm_info as if from hera_mc."""
-    from hera_corr_cm import redis_cm
     return redis_cm.read_cminfo_from_redis(return_as='dict')
 
 
@@ -54,9 +53,11 @@ def create_bda_config(n_ants_data, use_cm=False, use_redis=False):
     corr_map = json.loads(r.hgetall("corr:map"))
     config = yaml.safeload(r.hget("snap_configuration", "config"))
     corr_ant_nums = get_hera_to_corr_ants(corr_map, config)
+    bl_pairs = assign_bl_pair_tier(corr_ant_nums)
+    return bl_pairs
 
 
-def assign_bl_pair_tier(corr_nums):
+def assign_bl_pair_tier(corr_nums, nants=352):
     """
     Assign a BDA tier to each baseline pair.
 
@@ -67,9 +68,9 @@ def assign_bl_pair_tier(corr_nums):
     """
     bl_pairs = []
     #for ant0 in corr_nums
-    for ant0 in range(NANTS):
-        for ant1 in range(ant0, NANTS, 1):
-            if (ant0 in corr_ant_nums) and (ant1 in corr_ant_nums):
+    for ant0 in range(nants):
+        for ant1 in range(ant0, nants, 1):
+            if (ant0 in corr_nums) and (ant1 in corr_nums):
                bl_pairs.append([ant0, ant1, 4])
             else:
                bl_pairs.append([ant0, ant1, 0])
@@ -77,10 +78,26 @@ def assign_bl_pair_tier(corr_nums):
     return bl_pairs
 
 
-def write_bda_config_to_redis(bl_pairs):
+def write_bda_config_to_redis(bl_pairs, redishost="localhost"):
+    # convert list of lists to single string
+    bl_pairs_list = [" ".join(map(str, blp)) for blp in bl_pairs]
+    bl_pairs_str = "\n".join(bl_pairs_list)
+    print("length: ", len(bl_pairs_str))
+
     # Write baseline-pair data to redis
-    for ant0, ant1, integrations in bl_pairs:
-        if integrations == 0:
-            continue
-        #n =
-        pass
+    with redis.Redis(redishost, decode_responses=True) as rclient:
+        rclient.hset("corr", "bl_bda_tiers", bl_pairs_str)
+
+    return
+
+
+def read_bda_config_from_redis(redishost="localhost"):
+    # read in bl pair distribution from redis
+    with redis.Redis(redishost, decode_responses=True) as rclient:
+        bl_pairs_str = rclient.hget("corr", "bl_bda_tiers")
+
+    # convert from string -> list of lists
+    bl_pairs_list = bl_pairs_str.split("\n")
+    bl_pairs = [list(map(int, blp.split(" "))) for blp in bl_pairs_list]
+
+    return bl_pairs

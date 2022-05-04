@@ -40,3 +40,31 @@ def test_parse_corr_map(config_files):
     assert len(corr_map) == 143
 
     return
+
+def test_assign_bl_pair_tier(config_files):
+    corr_map, config = config_files
+    corr_map = bda.get_hera_to_corr_ants(corr_map, config)
+    bl_pairs = bda.assign_bl_pair_tier(corr_map)
+
+    # make sure the output is the type and length we expect
+    assert type(bl_pairs) is list
+    for bl in bl_pairs:
+        ant1, ant2, integration = bl
+        if ant1 in corr_map and ant2 in corr_map:
+            assert integration > 0
+        else:
+            assert integration == 0
+
+    return
+
+def test_write_bda_config_to_redis(config_files):
+    corr_map, config = config_files
+    corr_map = bda.get_hera_to_corr_ants(corr_map, config)
+    bl_pairs = bda.assign_bl_pair_tier(corr_map)
+    bda.write_bda_config_to_redis(bl_pairs)
+
+    # check that we can get it back out again
+    bl_pairs_redis = bda.read_bda_config_from_redis()
+    assert bl_pairs_redis == bl_pairs
+
+    return
