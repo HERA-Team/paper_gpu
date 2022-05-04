@@ -31,6 +31,8 @@
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
+#define MAXSTR 600000
+
 typedef struct {
     uint32_t baselines;   // Num baselines in bin
     uint16_t samp_in_bin; // Num samples per baseline
@@ -179,17 +181,20 @@ static uint64_t get_sample_from_mcnt(uint64_t curr_mcnt, uint64_t start_bda_mcnt
    return sample; 
 }
 
-static int init_bda_info(bda_info_t *binfo, char *config_fname){
-   FILE *fp;
+static int init_bda_info(bda_info_t *binfo, char *redis_buf){
    int i,j,k, a0, a1, inttime, bin;
    uint32_t blctr[] = {0,0,0,0,0};
    uint32_t bctr = 0;
+   char bda_tiers[MAXSTR];
 
-   if((fp=fopen(config_fname,"r")) == NULL){
-      printf("Cannot open the configuration file.\n");
+   bda_tiers[0] = EOF;
+
+   hgets(redis_buf, "corr:bl_bda_tiers", MAXSTR, bda_tiers);
+   if(bda_tiers[0] == EOF){
+      printf("Cannot read the configuration from redis.\n");
       exit(1);
    }
-   while(fscanf(fp, "%d %d %d", &a0, &a1, &inttime)!=EOF){
+   while(sscanf(bda_tiers, "%d %d %d", &a0, &a1, &inttime)!=EOF){
       if(!CHECK_PWR2(inttime)){
         printf("(%d,%d): Samples to integrate not power of 2!\n",a0,a1);
         exit(1);
@@ -210,14 +215,14 @@ static int init_bda_info(bda_info_t *binfo, char *config_fname){
      binfo[j].ant_pair_1 = (uint16_t *)malloc(binfo[j].baselines * sizeof(uint16_t));
      binfo[j].bcnt       = (uint32_t *)malloc(binfo[j].baselines * binfo[j].samp_in_bin * sizeof(uint32_t));
    }
-   rewind(fp); //re-read antpairs to store them
-   while(fscanf(fp, "%d %d %d", &a0, &a1, &inttime)!=EOF){
+   /* rewind(fp); //re-read antpairs to store them */
+   while(sscanf(bda_tiers, "%d %d %d", &a0, &a1, &inttime)!=EOF){
      if (inttime == 0) continue;
      bin = LOG(inttime); 
      binfo[bin].ant_pair_0[blctr[bin]] = a0;
      binfo[bin].ant_pair_1[blctr[bin]++] = a1;
    }
-   fclose(fp);
+   /* fclose(fp); */
 
    // Init the bcnt values (just an incremental counter)
    for(j=0; j<N_BDABUF_BINS; j++){
@@ -279,14 +284,14 @@ static void *run(hashpipe_thread_args_t * args)
 
    // Flag that holds off the net thread
    int holdoff = 1;
- 
+
    // Force this thread into holdoff until BDACONF is written
    fprintf(stdout, "Waiting for someone to supply BDACONF\n");
    hashpipe_status_lock_safe(&st);
    hputs(st.buf, "BDACONF", "");
    hputs(st.buf, status_key, "holding");
    hashpipe_status_unlock_safe(&st);
- 
+
    while(holdoff) {
      sleep(1);
      hashpipe_status_lock_safe(&st);
@@ -303,7 +308,7 @@ static void *run(hashpipe_thread_args_t * args)
    }
 
    // Initialize binfo with config file params
-   init_bda_info(binfo, config_fname); 
+   init_bda_info(binfo, st.buf);
 
    int j;
    uint64_t total_baselines = 0;
