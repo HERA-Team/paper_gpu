@@ -33,10 +33,10 @@ def get_corr_to_hera_map(r, nants_data=192, nants=352):
     #host_to_index = r.hgetall("corr:snap_ants")
     for ant, pol in ant_to_snap.items():
         hera_ant_number = int(ant)
-        host = pol["n"]["host"]
-        chan = pol["n"]["channel"]  # runs 0-5
-        #snap_ant_chans = r.hget("corr:snap_ants", host)
         try:
+            pol_key = list(pol.keys())[0]
+            host = pol[pol_key]["host"]
+            chan = pol[pol_key]["channel"]  # runs 0-5
             snap_ant_chans = str(config['fengines'][host]['ants'])
         except(KeyError):
             snap_ant_chans = None
