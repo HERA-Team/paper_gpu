@@ -51,7 +51,7 @@ def create_bda_config(n_ants_data, use_cm=False, use_redis=False,
     cminfo = get_cm_info()
 
     r = redis.Redis('redishost', decode_responses=True)
-    corr_map = json.loads(r.hgetall("corr:map"))
+    corr_map = r.hgetall("corr:map")
     config = yaml.safeload(r.hget("snap_configuration", "config"))
     corr_ant_nums = get_hera_to_corr_ants(corr_map, config)
     bl_pairs = assign_bl_pair_tier(corr_ant_nums, nants=nants)
