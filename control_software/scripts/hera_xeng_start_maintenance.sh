@@ -43,9 +43,14 @@ hera_xeng_stop.sh
 # Start afresh
 echo Starting X-Engines > $LOGFILE
 date >> $LOGFILE
+echo xtor_up.py --runtweak --redislog px{1..16} &>> $LOGFILE
 xtor_up.py --runtweak --redislog px{1..16} &>> $LOGFILE
+echo hera_catcher_up.py --redislog $CATCHERHOST &>> $LOGFILE
 hera_catcher_up.py --redislog $CATCHERHOST &>> $LOGFILE
 
+echo hera_set_observation.py --obslen=$obslen &>> $LOGFILE
 hera_set_observation.py --obslen=$obslen &>> $LOGFILE
+echo hera_ctl.py start &>> $LOGFILE
 hera_ctl.py start &>> $LOGFILE
+echo hera_catcher_take_data.py --tag $TAG $CATCHERHOST &>> $LOGFILE
 hera_catcher_take_data.py --tag $TAG $CATCHERHOST &>> $LOGFILE
