@@ -163,6 +163,7 @@ def create_header(h5, config, use_cm=False, use_redis=False):
     data group.
 
     inputs: h5 -- an h5py File object
+            config -- list representation of baseline bda tiers
             use_cm -- boolean. If True, get valid data from the hera_cm
                       system. If False, just stuff the header with fake
                       data.
@@ -172,7 +173,6 @@ def create_header(h5, config, use_cm=False, use_redis=False):
 
     #Load config file
     N_MAX_INTTIME = 8
-    config = np.loadtxt(config, dtype=int)
     baselines = []
     integration_bin = []
 
@@ -388,6 +388,7 @@ def add_extra_keywords(obj, cminfo=None, fenginfo=None):
 
 if __name__ == "__main__":
     import argparse
+    from paper_gpu import bda
 
     parser = argparse.ArgumentParser(description='Create a template HDF5 header file, optionally '\
                                      'using the correlator C+M system to get current meta-data',
@@ -397,12 +398,11 @@ if __name__ == "__main__":
                         help ='Use this flag to get up-to-date (hopefully) array meta-data from the C+M system')
     parser.add_argument('-r', dest='use_redis', action='store_true', default=False,
                         help ='Use this flag to get up-to-date (hopefully) f-engine meta-data from a redis server at `redishost`')
-    parser.add_argument('--config', type=str, default='/tmp/bdaconfig.txt',
-                        help = 'BDA Configuration file to create header (taken from redis by default)')
+    parser.add_argument('--redishost', default='redishost',
+                        help ='Redis host name.')
     args = parser.parse_args()
 
-    if args.config:
-       config = args.config
+    config = bda.read_bda_config_from_redis(args.redishost)
 
     with h5py.File(args.output, "w") as h5:
         create_header(h5, config, use_cm=args.use_cminfo, use_redis=args.use_redis)

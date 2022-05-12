@@ -6,10 +6,10 @@ import argparse
 import subprocess
 import numpy as np
 import os
+from paper_gpu import bda
 
 perf_tweaker = 'tweak-perf-sn.sh'
 init = 'hera_catcher_init.sh'
-bda_config_cmd = ['hera_create_bda_config.py']
 template_cmd = ['hera_make_hdf5_template.py']
 
 def run_on_hosts(hosts, cmd, user=None, wait=True):
@@ -75,8 +75,7 @@ time.sleep(15)
 # Generate the BDA config file and upload to redis
 if not args.nobda:
     print('Create configuration file')
-    run_on_hosts([args.host], python_source_cmd + bda_config_cmd + ['-c','-r', '/tmp/bdaconfig.txt'], wait=True)
-    os.system('scp "%s:%s" "%s" ' % ('hera-sn1', '/tmp/bdaconfig.txt','/tmp/bdaconfig.txt') )
+    run_on_hosts([args.host], python_source_cmd + ['hera_create_bda_config.py','-c','-r'], wait=True)
     
 time.sleep(10)
 
@@ -112,7 +111,7 @@ if not args.nobda:
    for n in range(4):
        baselines[n] = []
 
-   bdaconfig = np.loadtxt('/tmp/bdaconfig.txt', dtype=np.int)
+   bdaconfig = bda.read_bda_config_from_redis(redishost=args.redishost)
    for ant0, ant1, t in bdaconfig:
        if (t==0): continue
        n = int(np.log2(t))

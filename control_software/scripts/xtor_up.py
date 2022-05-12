@@ -9,7 +9,6 @@ import subprocess
 perf_tweaker = 'tweak-perf.sh'
 paper_init = 'paper_init.sh'
 paper_init_ibv = 'paper_init_ibv.sh'
-bda_config_cmd = ['hera_create_bda_config.py']
 
 def run_on_hosts(hosts, cmd, user=None, wait=True):
     if isinstance(cmd, str):
@@ -33,8 +32,6 @@ parser.add_argument('-t', dest='timeslices', type=int, default=2,
                     help='Number of independent correlators. E.g. 2 => Even/odd correlator')
 parser.add_argument('-i', dest='ninstances', type=int, default=2,
                     help='Number of pipeline instances per host')
-parser.add_argument('-c', dest='bdaconf', type=str, default='/tmp/bdaconfig.txt',
-                    help='Location of BDA config file (used only if --bda flag is used)')
 parser.add_argument('--runtweak', dest='runtweak', action='store_true', default=False,
                     help='Run the tweaking script %s on X-hosts prior to starting the correlator' % perf_tweaker)
 parser.add_argument('--ibverbs', dest='ibverbs', action='store_true', default=False,
@@ -96,14 +93,9 @@ time.sleep(3)
 if not args.nobda:
     python_source_cmd = ["source", os.path.join(args.pypath, "bin/activate"), "hera", ";"]
     if args.nodatabase:
-        run_on_hosts(hosts, python_source_cmd + bda_config_cmd + [args.bdaconf], wait=True)
+        run_on_hosts(hosts, python_source_cmd + ['hera_create_bda_config.py'], wait=True)
     else:
-        run_on_hosts(hosts, python_source_cmd + bda_config_cmd + ["-c", "-r", args.bdaconf], wait=True)
-
-    for hn,host in enumerate(hosts):
-       for i in range(args.ninstances):
-          key = 'hashpipe://%s/%d/set' % (host, i)
-          r.publish(key, 'BDACONF=%s' % args.bdaconf)
+        run_on_hosts(hosts, python_source_cmd + ['hera_create_bda_config.py',"-c", "-r"], wait=True)
 
 # Configure the X-engines as even/odd correlators
 if (len(hosts) == 1) and (args.timeslices != 1):
