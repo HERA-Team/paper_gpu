@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <endian.h>
 #include <arpa/inet.h>
+#include <hiredis.h>
 
 #include <xgpu.h>
 
@@ -32,6 +33,8 @@
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
 #define MAXSTR 600000
+#define REDISHOST "redishost"
+#define REDISPORT 6379
 
 typedef struct {
     uint32_t baselines;   // Num baselines in bin
@@ -181,20 +184,50 @@ static uint64_t get_sample_from_mcnt(uint64_t curr_mcnt, uint64_t start_bda_mcnt
    return sample; 
 }
 
-static int init_bda_info(bda_info_t *binfo, char *redis_buf){
+static int init_bda_info(bda_info_t *binfo){
    int i,j,k, a0, a1, inttime, bin;
    uint32_t blctr[] = {0,0,0,0,0};
    uint32_t bctr = 0;
    char bda_tiers[MAXSTR];
+   char *line;
+   redisContext *c;
+   redisReply *reply;
 
    bda_tiers[0] = EOF;
 
-   hgets(redis_buf, "corr:bl_bda_tiers", MAXSTR, bda_tiers);
+   // open a new conneciton to redis
+   c = redisConnect(REDISHOST, REDISPORT);
+   if (c == NULL || c->err) {
+     if (c) {
+       printf("Connection error: %s\n", c->errstr);
+       redisFree(c);
+     } else {
+       printf("Connection error: can't allocate redis context\n");
+     }
+     exit(1);
+   }
+
+   // read BDA tier list
+   reply = redisCommand(c, "HGET corr bl_bda_tiers");
+   if (c->err) {
+     printf("HGET error: %s\n", c->errstr);
+     exit(1);
+   }
+
+   // copy to new buffer and shut down gracefully
+   strcpy(bda_tiers, reply->str);
+   freeReplyObject(reply);
+   redisFree(c);
+
    if(bda_tiers[0] == EOF){
       printf("Cannot read the configuration from redis.\n");
       exit(1);
    }
-   while(sscanf(bda_tiers, "%d %d %d", &a0, &a1, &inttime)!=EOF){
+
+   line = strtok(bda_tiers, "\n");
+   while (line != NULL) {
+      sscanf(line, "%d %d %d", &a0, &a1, &inttime);
+      line = strtok(NULL, "\n");
       if(!CHECK_PWR2(inttime)){
         printf("(%d,%d): Samples to integrate not power of 2!\n",a0,a1);
         exit(1);
@@ -215,14 +248,15 @@ static int init_bda_info(bda_info_t *binfo, char *redis_buf){
      binfo[j].ant_pair_1 = (uint16_t *)malloc(binfo[j].baselines * sizeof(uint16_t));
      binfo[j].bcnt       = (uint32_t *)malloc(binfo[j].baselines * binfo[j].samp_in_bin * sizeof(uint32_t));
    }
-   /* rewind(fp); //re-read antpairs to store them */
-   while(sscanf(bda_tiers, "%d %d %d", &a0, &a1, &inttime)!=EOF){
+   line = strtok(bda_tiers, "\n");
+   while (line != NULL) {
+     sscanf(line, "%d %d %d", &a0, &a1, &inttime);
+     line = strtok(NULL, "\n");
      if (inttime == 0) continue;
      bin = LOG(inttime); 
      binfo[bin].ant_pair_0[blctr[bin]] = a0;
      binfo[bin].ant_pair_1[blctr[bin]++] = a1;
    }
-   /* fclose(fp); */
 
    // Init the bcnt values (just an incremental counter)
    for(j=0; j<N_BDABUF_BINS; j++){
@@ -308,7 +342,7 @@ static void *run(hashpipe_thread_args_t * args)
    }
 
    // Initialize binfo with config file params
-   init_bda_info(binfo, st.buf);
+   init_bda_info(binfo);
 
    int j;
    uint64_t total_baselines = 0;
