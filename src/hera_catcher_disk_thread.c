@@ -810,12 +810,10 @@ static void *run(hashpipe_thread_args_t * args)
     // Redis connection
     redisContext *c;
     redisReply *reply;
-    const char *hostname = "redishost";
-    int redisport = 6379;
     int use_redis = 1;
 
     struct timeval redistimeout = { 0, 100000 }; // 0.1 seconds
-    c = redisConnectWithTimeout(hostname, redisport, redistimeout);
+    c = redisConnectWithTimeout(REDISHOST, REDISPORT, redistimeout);
     if (c == NULL || c->err) {
         if (c) {
             fprintf(stderr, "Redis connection error: %s\n", c->errstr);

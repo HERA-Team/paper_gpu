@@ -196,7 +196,8 @@ static int init_bda_info(bda_info_t *binfo){
    bda_tiers[0] = EOF;
 
    // open a new conneciton to redis
-   c = redisConnect(REDISHOST, REDISPORT);
+   struct timeval redistimeout = { 0, 100000 }; // 0.1 seconds
+   c = redisConnectWithTimeout(REDISHOST, REDISPORT, redistimeout);
    if (c == NULL || c->err) {
      if (c) {
        printf("Connection error: %s\n", c->errstr);
