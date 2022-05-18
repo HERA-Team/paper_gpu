@@ -9,7 +9,6 @@ parser = argparse.ArgumentParser(description='Create a configuration file for BD
                                  'using the correlator C+M system to get current meta-data'\
                                  'NO BDA IS CURRENTLY PERFORMED!',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('output',type=str, help = 'Path to which the configuration file should be output')
 parser.add_argument('-c', dest='use_cminfo', action='store_true', default=False,
                     help ='Use this flag to get up-to-date (hopefully) array meta-data from the C+M system')
 parser.add_argument('--redishost', default='redishost',
