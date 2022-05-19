@@ -73,10 +73,11 @@ time.sleep(15)
 # Upload config file location
 # NOTE: This has to come before template generation!
 # Generate the BDA config file and upload to redis
-if not args.nobda:
-    print('Create configuration file')
-    run_on_hosts([args.host], python_source_cmd + ['hera_create_bda_config.py','-c','-r'], wait=True)
-    
+# THIS SHOULD BE DONE ALREADY DURING xtor_up.py
+# if not args.nobda:
+#     print('Create configuration file')
+#     run_on_hosts([args.host], python_source_cmd + ['hera_create_bda_config.py','-c','-r'], wait=True)
+
 time.sleep(10)
 
 # Generate the meta-data template

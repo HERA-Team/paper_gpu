@@ -93,7 +93,7 @@ time.sleep(3)
 if not args.nobda:
     python_source_cmd = ["source", os.path.join(args.pypath, "bin/activate"), "hera", ";"]
     # only run on one host
-    run_on_hosts(hosts[0], python_source_cmd + ['hera_create_bda_config.py'], wait=True)
+    run_on_hosts(hosts[0:1], python_source_cmd + ['hera_create_bda_config.py'], wait=True)
 
     # publish to hashpipe
     for hn, hostname in enumerate(hosts):
