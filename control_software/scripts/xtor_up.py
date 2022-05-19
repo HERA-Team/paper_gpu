@@ -96,7 +96,7 @@ if not args.nobda:
     run_on_hosts(hosts[0:1], python_source_cmd + ['hera_create_bda_config.py'], wait=True)
 
     # publish to hashpipe
-    for hn, hostname in enumerate(hosts):
+    for host in hosts:
         for i in range(args.ninstances):
             key = "hashpipe://%s/%d/set" % (host, i)
             r.publish(key, "BDACONF=set")
