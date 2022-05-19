@@ -33,8 +33,6 @@
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
 #define MAXSTR 600000
-#define REDISHOST "redishost"
-#define REDISPORT 6379
 
 typedef struct {
     uint32_t baselines;   // Num baselines in bin

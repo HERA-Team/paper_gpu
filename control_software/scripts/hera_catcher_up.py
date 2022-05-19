@@ -68,7 +68,7 @@ cpu_mask = '0x0004'
 run_on_hosts([args.host], ['taskset', cpu_mask, 'hashpipe_redis_gateway.rb', '-g', args.host, '-i', '0'])
 
 # Wait for the gateways to come up
-time.sleep(15)
+# time.sleep(15)
 
 # Upload config file location
 # NOTE: This has to come before template generation!
