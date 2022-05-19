@@ -402,7 +402,7 @@ if __name__ == "__main__":
                         help ='Redis host name.')
     args = parser.parse_args()
 
-    config = np.asarray(bda.read_bda_config_from_redis(args.redishost))
+    config = bda.read_bda_config_from_redis(args.redishost)
 
     with h5py.File(args.output, "w") as h5:
         create_header(h5, config, use_cm=args.use_cminfo, use_redis=args.use_redis)

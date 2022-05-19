@@ -99,7 +99,7 @@ catcher_dict = {
 
 pubchan = 'hashpipe://%s/%d/set' % (args.host, 0)
 for key, val in catcher_dict.items():
-   r.publish(pubchan, '%s=%s' % (key, val))
+    r.publish(pubchan, '%s=%s' % (key, val))
 for v in ['NETWAT', 'NETREC', 'NETPRC']:
     r.publish(pubchan, '%sMN=99999' % (v))
     r.publish(pubchan, '%sMX=0' % (v))
@@ -107,26 +107,26 @@ r.publish(pubchan, 'MISSEDPK=0')
 
 # If BDA is requested, write distribution to redis
 if not args.nobda:
-   baselines = {}
-   Nants = 0
-   for n in range(4):
-       baselines[n] = []
+    baselines = {}
+    Nants = 0
+    for n in range(4):
+        baselines[n] = []
 
-   bdaconfig = bda.read_bda_config_from_redis(redishost=args.redishost)
-   for ant0, ant1, t in bdaconfig:
-       if (t==0): continue
-       n = int(np.log2(t))
-       if (n==4): n = 3
-       baselines[n].append((ant0, ant1))
-       if(ant0 == ant1):
-         Nants += 1
-   
-   for i in range(4):
-       print((i, len(baselines[i])))
-       r.publish(pubchan, 'NBL%dSEC=%d'  % (2**(i+1), len(baselines[i])))
-   r.publish(pubchan, 'BDANANT=%d' % Nants)
-   
-   time.sleep(0.1)
+    bdaconfig = bda.read_bda_config_from_redis(redishost=args.redishost)
+    for ant0, ant1, t in bdaconfig:
+        if (t==0): continue
+        n = int(np.log2(t))
+        if (n==4): n = 3
+        baselines[n].append((ant0, ant1))
+        if(ant0 == ant1):
+            Nants += 1
+
+    for i in range(4):
+        print((i, len(baselines[i])))
+        r.publish(pubchan, 'NBL%dSEC=%d'  % (2**(i+1), len(baselines[i])))
+    r.publish(pubchan, 'BDANANT=%d' % Nants)
+
+    time.sleep(0.1)
 
 # Release nethread hold
 r.publish(pubchan, 'CNETHOLD=0')

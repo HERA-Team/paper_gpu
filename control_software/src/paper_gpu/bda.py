@@ -6,6 +6,7 @@ import redis
 import json
 import yaml
 import argparse
+import numpy as np
 
 from hera_corr_cm import redis_cm
 
@@ -82,7 +83,6 @@ def write_bda_config_to_redis(bl_pairs, redishost="localhost"):
     # convert list of lists to single string
     bl_pairs_list = [" ".join(map(str, blp)) for blp in bl_pairs]
     bl_pairs_str = "\n".join(bl_pairs_list)
-    print("length: ", len(bl_pairs_str))
 
     # Write baseline-pair data to redis
     with redis.Redis(redishost, decode_responses=True) as rclient:
@@ -100,4 +100,4 @@ def read_bda_config_from_redis(redishost="localhost"):
     bl_pairs_list = bl_pairs_str.split("\n")
     bl_pairs = [list(map(int, blp.split(" "))) for blp in bl_pairs_list]
 
-    return bl_pairs
+    return np.asarray(bl_pairs)

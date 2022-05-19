@@ -7,6 +7,7 @@ import pytest
 import json
 import yaml
 import os
+import numpy as np
 
 from paper_gpu.data import DATA_PATH
 CORR_MAP = os.path.join(DATA_PATH, 'corr_map_example')
@@ -65,6 +66,6 @@ def test_write_bda_config_to_redis(config_files):
 
     # check that we can get it back out again
     bl_pairs_redis = bda.read_bda_config_from_redis()
-    assert bl_pairs_redis == bl_pairs
+    assert np.allclose(bl_pairs_redis, bl_pairs)
 
     return
