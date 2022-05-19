@@ -315,7 +315,7 @@ static void *run(hashpipe_thread_args_t * args)
    hera_bda_databuf_t *odb = (hera_bda_databuf_t *)args->obuf;
    hashpipe_status_t st = args->st;
    const char *status_key = args->thread_desc->skey;
-   char config_fname[128] = "";
+   char config_status[128] = "";
 
    // Flag that holds off the net thread
    int holdoff = 1;
@@ -330,8 +330,8 @@ static void *run(hashpipe_thread_args_t * args)
    while(holdoff) {
      sleep(1);
      hashpipe_status_lock_safe(&st);
-     hgets(st.buf, "BDACONF", 128, config_fname);
-     if (strlen(config_fname) > 1){
+     hgets(st.buf, "BDACONF", 128, config_status);
+     if (strlen(config_status) > 1){
         holdoff = 0;
      }
      if(!holdoff) {
@@ -342,7 +342,7 @@ static void *run(hashpipe_thread_args_t * args)
      hashpipe_status_unlock_safe(&st);
    }
 
-   // Initialize binfo with config file params
+   // Initialize binfo with config from redis
    init_bda_info(binfo);
 
    int j;

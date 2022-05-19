@@ -92,10 +92,14 @@ time.sleep(3)
 # Generate the BDA config file and upload to redis
 if not args.nobda:
     python_source_cmd = ["source", os.path.join(args.pypath, "bin/activate"), "hera", ";"]
-    if args.nodatabase:
-        run_on_hosts(hosts, python_source_cmd + ['hera_create_bda_config.py'], wait=True)
-    else:
-        run_on_hosts(hosts, python_source_cmd + ['hera_create_bda_config.py',"-c", "-r"], wait=True)
+    # only run on one host
+    run_on_hosts(hosts[0], python_source_cmd + ['hera_create_bda_config.py'], wait=True)
+
+    # publish to hashpipe
+    for hn, hostname in enumerate(hosts):
+        for i in range(args.ninstances):
+            key = "hashpipe://%s/%d/set" % (host, i)
+            r.publish(key, "BDACONF=set")
 
 # Configure the X-engines as even/odd correlators
 if (len(hosts) == 1) and (args.timeslices != 1):

@@ -46,8 +46,7 @@ def get_hera_to_corr_ants(corr_map, snap_config):
     return corr_nums
 
 
-def create_bda_config(n_ants_data, use_cm=False, use_redis=False,
-                      nants=352):
+def create_bda_config(n_ants_data, nants=352):
     cminfo = get_cm_info()
 
     r = redis.Redis('redishost', decode_responses=True)
