@@ -213,10 +213,8 @@ static int init_bda_info(bda_info_t *binfo){
      exit(1);
    }
 
-   // copy to new buffer and shut down gracefully
+   // copy to new buffer
    strcpy(bda_tiers, reply->str);
-   freeReplyObject(reply);
-   redisFree(c);
 
    if(bda_tiers[0] == EOF){
       printf("Cannot read the configuration from redis.\n");
@@ -247,6 +245,12 @@ static int init_bda_info(bda_info_t *binfo){
      binfo[j].ant_pair_1 = (uint16_t *)malloc(binfo[j].baselines * sizeof(uint16_t));
      binfo[j].bcnt       = (uint32_t *)malloc(binfo[j].baselines * binfo[j].samp_in_bin * sizeof(uint32_t));
    }
+
+   // copy to new buffer and shut down gracefully
+   strcpy(bda_tiers, reply->str);
+   freeReplyObject(reply);
+   redisFree(c);
+
    line = strtok(bda_tiers, "\n");
    while (line != NULL) {
      sscanf(line, "%d %d %d", &a0, &a1, &inttime);
