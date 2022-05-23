@@ -188,6 +188,7 @@ static int init_bda_info(bda_info_t *binfo){
    uint32_t bctr = 0;
    char bda_tiers[MAXSTR];
    char *line;
+   char *saveptr = NULL;
    redisContext *c;
    redisReply *reply;
 
@@ -221,10 +222,10 @@ static int init_bda_info(bda_info_t *binfo){
       exit(1);
    }
 
-   line = strtok(bda_tiers, "\n");
+   line = strtok_r(bda_tiers, "\n", &saveptr);
    while (line != NULL) {
       sscanf(line, "%d %d %d", &a0, &a1, &inttime);
-      line = strtok(NULL, "\n");
+      line = strtok_r(NULL, "\n", &saveptr);
       if(!CHECK_PWR2(inttime)){
         printf("(%d,%d): Samples to integrate not power of 2!\n",a0,a1);
         exit(1);
@@ -251,10 +252,10 @@ static int init_bda_info(bda_info_t *binfo){
    freeReplyObject(reply);
    redisFree(c);
 
-   line = strtok(bda_tiers, "\n");
+   line = strtok_r(bda_tiers, "\n", &saveptr);
    while (line != NULL) {
      sscanf(line, "%d %d %d", &a0, &a1, &inttime);
-     line = strtok(NULL, "\n");
+     line = strtok_r(NULL, "\n", &saveptr);
      if (inttime == 0) continue;
      bin = LOG(inttime); 
      binfo[bin].ant_pair_0[blctr[bin]] = a0;
