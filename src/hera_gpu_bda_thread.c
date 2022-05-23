@@ -204,14 +204,14 @@ static int init_bda_info(bda_info_t *binfo){
      } else {
        printf("Connection error: can't allocate redis context\n");
      }
-     exit(1);
+     pthread_exit(NULL);
    }
 
    // read BDA tier list
    reply = redisCommand(c, "HGET corr bl_bda_tiers");
    if (c->err) {
      printf("HGET error: %s\n", c->errstr);
-     exit(1);
+     pthread_exit(NULL);
    }
 
    // copy to new buffer
@@ -219,7 +219,7 @@ static int init_bda_info(bda_info_t *binfo){
 
    if(bda_tiers[0] == EOF){
       printf("Cannot read the configuration from redis.\n");
-      exit(1);
+      pthread_exit(NULL);
    }
 
    line = strtok_r(bda_tiers, "\n", &saveptr);
@@ -228,7 +228,7 @@ static int init_bda_info(bda_info_t *binfo){
       line = strtok_r(NULL, "\n", &saveptr);
       if(!CHECK_PWR2(inttime)){
         printf("(%d,%d): Samples to integrate not power of 2!\n",a0,a1);
-        exit(1);
+        pthread_exit(NULL);
       }
       if(inttime == 0) continue;
       blctr[LOG(inttime)]+=1;
