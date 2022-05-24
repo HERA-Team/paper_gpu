@@ -10,7 +10,6 @@ from paper_gpu import bda
 
 perf_tweaker = 'tweak-perf-sn.sh'
 init = 'hera_catcher_init.sh'
-template_cmd = ['hera_make_hdf5_template.py']
 
 def run_on_hosts(hosts, cmd, user=None, wait=True):
     if isinstance(cmd, str):
@@ -67,13 +66,11 @@ time.sleep(15)
 cpu_mask = '0x0004'
 run_on_hosts([args.host], ['taskset', cpu_mask, 'hashpipe_redis_gateway.rb', '-g', args.host, '-i', '0'])
 
-time.sleep(10)
-
 # Generate the meta-data template
 if not args.nobda:
    run_on_hosts([args.host], python_source_cmd + ['hera_make_hdf5_template_bda.py'] + ['-c', '-r', args.hdf5template], wait=True)
 else:
-   run_on_hosts([args.host], python_source_cmd + template_cmd + ['-c', '-r', args.hdf5template], wait=True)
+   run_on_hosts([args.host], python_source_cmd + ['hera_make_hdf5_template.py'] + ['-c', '-r', args.hdf5template], wait=True)
 
 #Configure runtime parameters
 catcher_dict = {
