@@ -10,5 +10,4 @@ try:
 except DistributionNotFound:
     pass
 
-from . import gpu
 from . import bda
