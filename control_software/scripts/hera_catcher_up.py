@@ -6,11 +6,10 @@ import argparse
 import subprocess
 import numpy as np
 import os
+from paper_gpu import bda
 
 perf_tweaker = 'tweak-perf-sn.sh'
 init = 'hera_catcher_init.sh'
-bda_config_cmd = ['hera_create_bda_config.py']
-template_cmd = ['hera_make_hdf5_template.py']
 
 def run_on_hosts(hosts, cmd, user=None, wait=True):
     if isinstance(cmd, str):
@@ -68,23 +67,13 @@ cpu_mask = '0x0004'
 run_on_hosts([args.host], ['taskset', cpu_mask, 'hashpipe_redis_gateway.rb', '-g', args.host, '-i', '0'])
 
 # Wait for the gateways to come up
-time.sleep(15)
-
-# Upload config file location
-# NOTE: This has to come before template generation!
-# Generate the BDA config file and upload to redis
-if not args.nobda:
-    print('Create configuration file')
-    run_on_hosts([args.host], python_source_cmd + bda_config_cmd + ['-c','-r', '/tmp/bdaconfig.txt'], wait=True)
-    os.system('scp "%s:%s" "%s" ' % ('hera-sn1', '/tmp/bdaconfig.txt','/tmp/bdaconfig.txt') )
-    
 time.sleep(10)
 
 # Generate the meta-data template
 if not args.nobda:
    run_on_hosts([args.host], python_source_cmd + ['hera_make_hdf5_template_bda.py'] + ['-c', '-r', args.hdf5template], wait=True)
 else:
-   run_on_hosts([args.host], python_source_cmd + template_cmd + ['-c', '-r', args.hdf5template], wait=True)
+   run_on_hosts([args.host], python_source_cmd + ['hera_make_hdf5_template.py'] + ['-c', '-r', args.hdf5template], wait=True)
 
 #Configure runtime parameters
 catcher_dict = {
@@ -99,7 +88,7 @@ catcher_dict = {
 
 pubchan = 'hashpipe://%s/%d/set' % (args.host, 0)
 for key, val in catcher_dict.items():
-   r.publish(pubchan, '%s=%s' % (key, val))
+    r.publish(pubchan, '%s=%s' % (key, val))
 for v in ['NETWAT', 'NETREC', 'NETPRC']:
     r.publish(pubchan, '%sMN=99999' % (v))
     r.publish(pubchan, '%sMX=0' % (v))
@@ -107,26 +96,26 @@ r.publish(pubchan, 'MISSEDPK=0')
 
 # If BDA is requested, write distribution to redis
 if not args.nobda:
-   baselines = {}
-   Nants = 0
-   for n in range(4):
-       baselines[n] = []
+    baselines = {}
+    Nants = 0
+    for n in range(4):
+        baselines[n] = []
 
-   bdaconfig = np.loadtxt('/tmp/bdaconfig.txt', dtype=np.int)
-   for ant0, ant1, t in bdaconfig:
-       if (t==0): continue
-       n = int(np.log2(t))
-       if (n==4): n = 3
-       baselines[n].append((ant0, ant1))
-       if(ant0 == ant1):
-         Nants += 1
-   
-   for i in range(4):
-       print((i, len(baselines[i])))
-       r.publish(pubchan, 'NBL%dSEC=%d'  % (2**(i+1), len(baselines[i])))
-   r.publish(pubchan, 'BDANANT=%d' % Nants)
-   
-   time.sleep(0.1)
+    bdaconfig = bda.read_bda_config_from_redis(redishost=args.redishost)
+    for ant0, ant1, t in bdaconfig:
+        if (t==0): continue
+        n = int(np.log2(t))
+        if (n==4): n = 3
+        baselines[n].append((ant0, ant1))
+        if(ant0 == ant1):
+            Nants += 1
+
+    for i in range(4):
+        print((i, len(baselines[i])))
+        r.publish(pubchan, 'NBL%dSEC=%d'  % (2**(i+1), len(baselines[i])))
+    r.publish(pubchan, 'BDANANT=%d' % Nants)
+
+    time.sleep(0.1)
 
 # Release nethread hold
 r.publish(pubchan, 'CNETHOLD=0')

@@ -61,6 +61,10 @@
 #define PAGE_SIZE (4096)
 #define CACHE_ALIGNMENT (128)
 
+// redis connection info
+#define REDISHOST "redishost"
+#define REDISPORT 6379
+
 // The HERA correlator is based largely on the PAPER correlator.  The main 
 // difference will be in the F engines.  The ROACH2 based F engines are being
 // replaced by SNAP based F engines.  Because SNAPs have a different number of

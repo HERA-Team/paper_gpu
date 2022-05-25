@@ -5,6 +5,7 @@ import numpy as np
 import struct
 import socket
 import argparse 
+from paper_gpu import bda
 
 N_ANTS_DATA = 192       # antennas
 N_bl_per_block = 256    # baselines within each block
@@ -15,6 +16,7 @@ N_STOKES = 4
 NCHANS = 1536
 N_CHAN_CATCHER = 1536
 INTSPEC = 131072
+REDISHOST = 'redishost'
 
 def signed_int(x):
     """Return two's complement interpretation 
@@ -58,8 +60,6 @@ parser.add_argument('-v', dest='verbose', action='store_true', default=False,
                      help='Print some contents of each packet')
 parser.add_argument('-c', dest='check', action='store_true', default=False,
                      help='Check the packet contents')
-parser.add_argument('--config', dest='bdaconfig', type=str, default='/tmp/bdaconfig.txt',
-                     help='BDA config file')
 parser.add_argument('--snap', action='store_true', default=False,
                      help='Set if the test vectors are coming from SNAPs')
 
@@ -87,7 +87,7 @@ for n in range(N_BDABUF_BINS):
     #int_bin['data'][n] = (2**n)*np.ones(1024)
     #int_bin['data'][n][1::2] = -2*(2**n)
 
-conf = np.loadtxt(args.bdaconfig, dtype=np.int)
+conf = bda.read_bda_config_from_redis(REDISHOST)
 for a0,a1,t in conf:
     if (t!=0):
         n = int(np.log2(t))
