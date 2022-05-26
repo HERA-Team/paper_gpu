@@ -83,18 +83,22 @@ def get_antpos_info():
     import cartopy.crs as ccrs
     import pyuvdata.utils as uvutils
     from hera_mc import geo_sysdef
-    from hera_mc.geo_handling import Handling
+
+    # read antenna positions from M&C
     ants = geo_sysdef.read_antennas()
     # convert from eastings/northings into ENU
-    hand = Handling()
+    # HERA is in zone 34J; corresponds to latitude 10000000 in northings
     latlon_p = ccrs.Geodetic()
-    utm_p = ccrs.UTM(hand.hera_zone[0])
-    lat_corr = hand.lat_corr[hand.hera_zone[1]]
+    utm_p = ccrs.UTM(34)
+    lat_corr = 10000000
     antpos_xyz = np.empty((350, 3), dtype=np.float64)
     ant_names = np.empty((350,), dtype="S5")
     for ant, pos in ants.items():
         # unpack antenna information
         antnum = int(ant[2:])
+        if antnum > 350:
+            # skip bizarre HT701 entry
+            continue
         easting = pos["E"]
         northing = pos["N"]
         elevation = pos["elevation"]
