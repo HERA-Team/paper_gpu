@@ -96,40 +96,117 @@ typedef struct {
     hid_t ant_2_array_fs;
 } hdf5_id_t;
 
-static hid_t open_hdf5_from_template(char * sourcename, char * destname)
+typedef struct {
+  unsigned int i;
+  unsigned int j;
+  unsigned int pol;
+  unsigned int mcnt;
+} bltp_t;
+
+static hid_t create_hdf5_metadata_file(char * filename)
 {
-    int read_fd, write_fd;
-    struct stat stat_buf;
-    off_t offset = 0;
-    hid_t status;
-    
-    read_fd = open(sourcename, O_RDONLY);
-    if (read_fd < 0) {
-        hashpipe_error(__FUNCTION__, "error opening %s", sourcename);
-        pthread_exit(NULL);
-    }
+  hid_t status;
 
-    // Get the file size
-    fstat(read_fd, &stat_buf);
+  status = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "error creating %s as HDF5 file", filename);
+    pthread_exit(NULL);
+  }
 
-    write_fd = open(destname, O_WRONLY | O_CREAT, stat_buf.st_mode);
-    if (write_fd < 0) {
-        hashpipe_error(__FUNCTION__, "error opening %s", destname);
-        pthread_exit(NULL);
-    }
+  return status;
+}
 
-    sendfile(write_fd, read_fd, &offset, stat_buf.st_size);
-    
-    close(read_fd);
-    close(write_fd);
+static void write_metadata_datasets(hid_t *file_id, float t0, float mcnt, bltp_t bltp_idx, size_t bltp_size){
+  hid_t dset_id, dspace_id, status;
+  hsize_t dspace_dims[] = {bltp_size};
 
-    status = H5Fopen(destname, H5F_ACC_RDWR, H5P_DEFAULT);
-    if (status < 0) {
-        hashpipe_error(__FUNCTION__, "error opening %s as HDF5 file", destname);
-        pthread_exit(NULL);
-    }
+  // create scalar datasets
+  dspace_id = H5Screate_simple(H5S_SCALAR);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to create scalar dataspace");
+    pthread_exit(NULL);
+  }
 
-    return status;
+  // write t0
+  dset_id = H5Dcreate(file_id, "t0", H5T_NATIVE_FLOAT, dspace_id, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to make t0 dataset");
+    pthread_exit(NULL);
+  }
+  status = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, &t0);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write t0");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close t0");
+    pthread_exit(NULL);
+  }
+
+  // write mcnt
+  dset_id = H5Dcreate(file_id, "mcnt", H5T_NATIVE_FLOAT, dspace_id, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to make mcnt dataset");
+    pthread_exit(NULL);
+  }
+  status = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, &mcnt);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write mcnt");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close mcnt");
+    pthread_exit(NULL);
+  }
+
+  // close out dspace
+  status = H5Sclose(dspace_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close scalar dataspace");
+    pthread_exit(NULL);
+  }
+
+  // write bltp_indx
+  // need to make compound datatype
+  hid_t bltp_tid = H5Tcreate(H5T_COMPOUND, sizeof(bltp_t));
+  H5Tinsert(bltp_tid, "i", HOFFSET(bltp_t, i), H5T_NATIVE_UINT);
+  H5Tinsert(bltp_tid, "j", HOFFSET(bltp_t, j), H5T_NATIVE_UINT);
+  H5Tinsert(bltp_tid, "pol", HOFFSET(bltp_t, pol), H5T_NATIVE_UINT);
+  H5Tinsert(bltp_tid, "mcnt", HOFFSET(bltp_t, mcnt), H5T_NATIVE_UINT);
+
+  // create new dspace
+  dspace_id = H5Screate_simple(1, dspace_dims, NULL);
+  dset_id = H5Dcreate(file_id, "bltp_indx", bltp_tid, dspace_id, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to create compound dataset");
+    pthread_exit(NULL);
+  }
+
+  // write to dataset
+  status = H5Dwrite(dset_id, bltp_tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, bltp_indx);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write bltp_indx data");
+    pthread_exit(NULL);
+  }
+
+  // clean up
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close dataset");
+    pthread_exit(NULL);
+  }
+  status = H5Sclose(dspace_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close dataspace");
+    pthread_exit(NULL);
+  }
+  status = H5Tclose(bltp_tid);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close datatype");
+    pthread_exit(NULL);
+  }
 }
 
 # define FILTER_H5_LZF 32000
