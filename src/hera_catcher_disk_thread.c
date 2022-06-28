@@ -116,12 +116,30 @@ static hid_t create_hdf5_metadata_file(char * filename)
   return status;
 }
 
+static void close_hdf5_metadata_file(hid_t *file_id){
+  hid_t status;
+
+  // Close file
+  status = H5Fflush(file_id, H5F_SCOPE_GLOBAL);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to flush file");
+    pthread_exit(NULL);
+  }
+  status = H5Fclose(file_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close file");
+    pthread_exit(NULL);
+  }
+}
+
+#define VERSION_BYTES 32
 static void write_metadata_datasets(hid_t *file_id, float t0, float mcnt, bltp_t bltp_idx, size_t bltp_size){
-  hid_t dset_id, dspace_id, status;
+  hid_t dset_id, dspace_id, status, ver_tid;
   hsize_t dspace_dims[] = {bltp_size};
+  char ver[VERSION_BYTES] = GIT_VERSION; // defined at compile time
 
   // create scalar datasets
-  dspace_id = H5Screate_simple(H5S_SCALAR);
+  dspace_id = H5Screate(H5S_SCALAR);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create scalar dataspace");
     pthread_exit(NULL);
@@ -161,10 +179,27 @@ static void write_metadata_datasets(hid_t *file_id, float t0, float mcnt, bltp_t
     pthread_exit(NULL);
   }
 
-  // close out dspace
+  // version
+  ver_tid = H5Tcopy(H5T_C_S1);
+  H5Tset_size(ver_tid, VERSION_BYTES);
+  dset_id = H5Dcreate(file_id, "corr_ver", ver_tid, dspace_id, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to make corr_ver dataset");
+    pthread_exit(NULL);
+  }
+  status = H5Dwrite(dset_id, ver_tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, ver);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write Header/extra_keywords/corr_ver");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dataset_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close Header/extra_keywords/corr_ver");
+    pthread_exit(NULL);
+  }
   status = H5Sclose(dspace_id);
   if (status < 0) {
-    hashpipe_error(__FUNCTION__, "Failed to close scalar dataspace");
+    hashpipe_error(__FUNCTION__, "Failed to close dataspace");
     pthread_exit(NULL);
   }
 
@@ -329,13 +364,11 @@ static void init_headers_dataset(hdf5_id_t *id) {
    H5Sclose(file_space);
 }
 
-#define VERSION_BYTES 32
 static void start_file(hdf5_id_t *id, char *template_fname, char *hdf5_fname, uint64_t file_obs_id, double file_start_t, char* tag) 
 {
     hid_t dataset_id;
     hid_t memtype;
     hid_t stat;
-    char ver[VERSION_BYTES] = GIT_VERSION; // defined at compile time
 
     id->file_id = open_hdf5_from_template(template_fname, hdf5_fname);
 
