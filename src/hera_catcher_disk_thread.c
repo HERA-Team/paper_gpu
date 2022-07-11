@@ -46,36 +46,9 @@
 // 0xaaaaaaaa value, which is negative for signed ints.
 #define INVALID_INDICATOR (0xaa)
 
-#define CPTR(VAR,CONST) ((VAR)=(CONST),&(VAR))
-
 #define MAXSTR 1400
 
-static hid_t complex_id;
-static hid_t boolenumtype;
-//static hid_t boolean_id;
 static uint64_t bcnts_per_file;
-
-typedef enum {
-    FALSE,
-    TRUE
-} bool_t;
-
-typedef struct {
-    double e;
-    double n;
-    double u;
-} enu_t;
-
-typedef struct {
-    int a;
-    int b;
-} bl_t;
-
-typedef struct {
-    int ant0;
-    int ant1;
-    int tsamp;
-} bl_bda_t;
 
 static hid_t create_hdf5_metadata_file(char * filename)
 {
@@ -317,30 +290,46 @@ static void get_corr_to_hera_map(redisContext *c, int *corr_to_hera_map) {
   freeReplyObject(reply);
 }
 
-/* Get the integration time for each baseline from header (set by config file) */
-static void get_integration_time(hdf5_id_t *id, double *integration_time_buf, uint32_t acc_len) {
+/* Get the integration time for each baseline from redis (set by config file) */
+static void get_integration_time(redisContext *c, double *integration_time_buf, uint32_t acc_len) {
+  char int_bin_str[MAXSTR];
+  char *line;
+  char *saveptr = NULL;
+  redisReply *reply;
+  int i, intbin;
 
-    hid_t dataset_id;
-    herr_t status;
-    int i;
-    dataset_id = H5Dopen(id->header_gid, "integration_bin", H5P_DEFAULT);
-    if (dataset_id < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to open Header/integration_time dataset");
-        pthread_exit(NULL);
-    }
-    status = H5Dread(dataset_id, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, integration_time_buf);
-    if (status < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to read Header/integration_time dataset");
-       pthread_exit(NULL);
-    }
-    status = H5Dclose(dataset_id);
-    if (status < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close Header/integration_time dataset");
-    }
+  // read mapping from redis
+  int_bin_str[0] = EOF;
+  reply = redisCommand(c, "HGET corr integration_bin");
+  if (c->err) {
+    printf("HGET error: %s\n", c->errstr);
+    pthread_exit(NULL);
+  }
 
-    for(i=0; i< bcnts_per_file; i++){
-       integration_time_buf[i] *= acc_len * TIME_DEMUX * 2L * N_CHAN_TOTAL_GENERATED/(double)FENG_SAMPLE_RATE;
-    }
+  // copy to new buffer
+  strcpy(int_bin_str, reply->str);
+
+  if (int_bin_str[0] == EOF){
+    printf("Cannot read configuration from redis.\n");
+    pthread_exit(NULL);
+  }
+
+  line = strtok_r(redis_mapping, "\n", &saveptr);
+  i = 0;
+  while (line != NULL) {
+    sscanf(line, "%d", &intbin);
+    line = strtok_r(NULL, "\n", &saveptr);
+    integration_time_buf[i] = intbin;
+    i+=1;
+  }
+
+  // clean up
+  freeReplyObject(reply);
+
+  // finish computing integration time
+  for(i=0; i< bcnts_per_file; i++){
+    integration_time_buf[i] *= acc_len * TIME_DEMUX * 2L * N_CHAN_TOTAL_GENERATED/(double)FENG_SAMPLE_RATE;
+  }
 }
 
 /*
@@ -378,33 +367,6 @@ static void write_baseline_index(FILE *fstream, size_t nblts, uint64_t *visdata_
 
   // write to open file
   fwrite(visdata_buf, nelem, 1, fstream);
-}
-
-/* 
- * Write information to the hdf5 header.
- * Write: time, ant0, ant1
- */
-static void write_header(hdf5_id_t *id, double *time_array_buf, int *ant_0_array, int *ant_1_array, double *integration_time_buf)
-{
-   // time stamp of integration
-   if (H5Dwrite(id->time_array_did, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, time_array_buf) < 0) {
-       hashpipe_error(__FUNCTION__, "Error writing time_array");
-   }
-
-   // ant0
-   if (H5Dwrite(id->ant_1_array_did, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, ant_0_array) < 0) {
-       hashpipe_error(__FUNCTION__, "Error writing ant_1_array");
-   }
-
-   // ant1
-   if (H5Dwrite(id->ant_2_array_did, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, ant_1_array) < 0) {
-       hashpipe_error(__FUNCTION__, "Error writing ant_2_array");
-   }
-
-   // integration_time
-   if (H5Dwrite(id->integration_time_did, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, integration_time_buf) < 0) {
-       hashpipe_error(__FUNCTION__, "Error writing integration time");
-   }
 }
 
 // Get the even-sample / first-pol / first-complexity of the correlation buffer for chan `c` baseline `b`
