@@ -48,6 +48,8 @@
 
 #define CPTR(VAR,CONST) ((VAR)=(CONST),&(VAR))
 
+#define MAXSTR 1400
+
 static hid_t complex_id;
 static hid_t boolenumtype;
 //static hid_t boolean_id;
@@ -74,34 +76,6 @@ typedef struct {
     int ant1;
     int tsamp;
 } bl_bda_t;
-
-typedef struct {
-    hid_t file_id;
-    hid_t header_gid;
-    hid_t data_gid;
-    hid_t extra_keywords_gid;
-    hid_t visdata_did;
-    hid_t flags_did;
-    hid_t nsamples_did;
-    hid_t time_array_did;
-    hid_t integration_time_did;
-    hid_t ant_1_array_did;
-    hid_t ant_2_array_did;
-    hid_t visdata_fs;
-    hid_t flags_fs;
-    hid_t nsamples_fs;
-    hid_t time_array_fs;
-    hid_t integration_time_fs;
-    hid_t ant_1_array_fs;
-    hid_t ant_2_array_fs;
-} hdf5_id_t;
-
-typedef struct {
-  unsigned int i;
-  unsigned int j;
-  unsigned int pol;
-  unsigned int mcnt;
-} bltp_t;
 
 static hid_t create_hdf5_metadata_file(char * filename)
 {
@@ -132,10 +106,27 @@ static void close_hdf5_metadata_file(hid_t *file_id){
   }
 }
 
+static FILE open_data_file(char *filename)
+{
+  FILE *fp;
+
+  fp = fopen(filename, "wb");
+
+  return fp;
+}
+
+static void close_data_file(FILE *fp)
+{
+  fclose(fp);
+}
+
 #define VERSION_BYTES 32
-static void write_metadata_datasets(hid_t *file_id, float t0, float mcnt, bltp_t bltp_idx, size_t bltp_size){
+static void write_metadata(hid_t *file_id, float t0, float mcnt, double *time_array,
+                           int *ant_0_array, int *ant_1_array, double *integration_time,
+                           int nblt)
+{
   hid_t dset_id, dspace_id, status, ver_tid;
-  hsize_t dspace_dims[] = {bltp_size};
+  hsize_t dspace_dims[] = {nblt};
   char ver[VERSION_BYTES] = GIT_VERSION; // defined at compile time
 
   // create scalar datasets
@@ -203,362 +194,128 @@ static void write_metadata_datasets(hid_t *file_id, float t0, float mcnt, bltp_t
     pthread_exit(NULL);
   }
 
-  // write bltp_indx
-  // need to make compound datatype
-  hid_t bltp_tid = H5Tcreate(H5T_COMPOUND, sizeof(bltp_t));
-  H5Tinsert(bltp_tid, "i", HOFFSET(bltp_t, i), H5T_NATIVE_UINT);
-  H5Tinsert(bltp_tid, "j", HOFFSET(bltp_t, j), H5T_NATIVE_UINT);
-  H5Tinsert(bltp_tid, "pol", HOFFSET(bltp_t, pol), H5T_NATIVE_UINT);
-  H5Tinsert(bltp_tid, "mcnt", HOFFSET(bltp_t, mcnt), H5T_NATIVE_UINT);
-
   // create new dspace
   dspace_id = H5Screate_simple(1, dspace_dims, NULL);
-  dset_id = H5Dcreate(file_id, "bltp_indx", bltp_tid, dspace_id, H5P_DEFAULT);
+
+  // write ant_0_array
+  dset_id = H5Dcreate(file_id, "ant_0_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT);
   if (dset_id < 0) {
-    hashpipe_error(__FUNCTION__, "Failed to create compound dataset");
+    hashpipe_error(__FUNCTION__, "Failed to create ant_0_array dataset");
+    pthread_exit(NULL);
+  }
+  status = H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, ant_0_array);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write ant_0_array data");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_err(__FUNCTION__, "Failed to close ant_0_array dataset");
     pthread_exit(NULL);
   }
 
-  // write to dataset
-  status = H5Dwrite(dset_id, bltp_tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, bltp_indx);
+  // write ant_1_array
+  dset_id = H5Dcreate(file_id, "ant_1_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to create ant_1_array dataset");
+    pthread_exit(NULL);
+  }
+  status = H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, ant_1_array);
   if (status < 0) {
-    hashpipe_error(__FUNCTION__, "Failed to write bltp_indx data");
+    hashpipe_error(__FUNCTION__, "Failed to write ant_1_array data");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_err(__FUNCTION__, "Failed to close ant_1_array dataset");
+    pthread_exit(NULL);
+  }
+
+  // write time_array
+  dset_id = H5Dcreate(file_id, "time_array", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to create time_array dataset");
+    pthread_exit(NULL);
+  }
+  status = H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, time_array);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write time_array data");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close time_array dataset");
+    pthread_exit(NULL);
+  }
+
+  // write integration_time
+  dset_id = H5Dcreate(file_id, "integration_time", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to create integration_time dataset");
+    pthread_exit(NULL);
+  }
+  status = H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, integration_time);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write integration_time data");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close integration_time dataset");
     pthread_exit(NULL);
   }
 
   // clean up
-  status = H5Dclose(dset_id);
-  if (status < 0) {
-    hashpipe_error(__FUNCTION__, "Failed to close dataset");
-    pthread_exit(NULL);
-  }
   status = H5Sclose(dspace_id);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to close dataspace");
     pthread_exit(NULL);
   }
-  status = H5Tclose(bltp_tid);
-  if (status < 0) {
-    hashpipe_error(__FUNCTION__, "Failed to close datatype");
+}
+
+// The data in the files should be indexed in real antennas numbers, not
+// in correlator numbers. Get the corr_to_hera map from redis to get right labelling.
+/* Read the correlator to hera_antennas map from redis via the
+   corr:corr_to_hera_map key */
+static void get_corr_to_hera_map(redisContext *c, int *corr_to_hera_map) {
+  char redis_mapping[MAXSTR];
+  char *line;
+  char *saveptr = NULL;
+  redisReply *reply;
+  int iant, antnum;
+
+  // read mapping from redis
+  redis_mapping[0] = EOF;
+  reply = redisCommand(c, "HGET corr corr_to_hera_map");
+  if (c->err) {
+    printf("HGET error: %s\n", c->errstr);
     pthread_exit(NULL);
   }
+
+  // copy to new buffer
+  strcpy(redis_mapping, reply->str);
+
+  if (redis_mapping[0] == EOF){
+    printf("Cannot read configuration from redis.\n");
+    pthread_exit(NULL);
+  }
+
+  line = strtok_r(redis_mapping, "\n", &saveptr);
+  iant = 0;
+  while (line != NULL) {
+    sscanf(line, "%d", &antnum);
+    line = strtok_r(NULL, "\n", &saveptr);
+    corr_to_hera_map[iant] = antnum;
+    iant+=1;
+    if (iant > N_ANTS) {
+      printf("More ants in config than correlator supports.\n");
+      pthread_exit(NULL);
+    }
+  }
+
+  // clean up
+  freeReplyObject(reply);
 }
-
-# define FILTER_H5_LZF 32000
-# define FILTER_H5_BITSHUFFLE 32008
-static void init_data_dataset(hdf5_id_t *id){
-
-   hsize_t data_dims[N_DATA_DIMS] = {bcnts_per_file, 1, N_CHAN_PROCESSED, N_STOKES};
-   hsize_t chunk_dims[N_DATA_DIMS] = {N_BL_PER_WRITE, 1, N_CHAN_PROCESSED, N_STOKES};
-
-   hid_t file_space = H5Screate_simple(N_DATA_DIMS, data_dims, NULL);
-
-   //make plist for LZF datasets
-   int r;
-   r = register_lzf();
-   if (r<0) {
-     hashpipe_error(__FUNCTION__, "Failed to register LZF filter");
-     pthread_exit(NULL);
-   }
-   hid_t plist_lzf = H5Pcreate(H5P_DATASET_CREATE);
-   H5Pset_chunk(plist_lzf, N_DATA_DIMS, chunk_dims);
-   H5Pset_shuffle(plist_lzf);
-   H5Pset_filter(plist_lzf, H5PY_FILTER_LZF, H5Z_FLAG_OPTIONAL, 0, NULL);
-
-   // make plist for non-compressed datasets
-   hid_t plist = H5Pcreate(H5P_DATASET_CREATE);
-   H5Pset_layout(plist, H5D_CHUNKED);
-   H5Pset_chunk(plist, N_DATA_DIMS, chunk_dims);
-
-   // Now we have the dataspace properties, create the datasets
-   id->visdata_did = H5Dcreate(id->data_gid, "visdata", complex_id, file_space, H5P_DEFAULT, plist, H5P_DEFAULT);
-   if (id->visdata_did < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to create visdata dataset");
-       pthread_exit(NULL);
-   }
-
-   id->nsamples_did = H5Dcreate(id->data_gid, "nsamples", H5T_IEEE_F32LE, file_space, H5P_DEFAULT, plist_lzf, H5P_DEFAULT);
-   if (id->nsamples_did < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to create nsamples dataset");
-       pthread_exit(NULL);
-   }
-
-   id->flags_did = H5Dcreate(id->data_gid, "flags", boolenumtype, file_space, H5P_DEFAULT, plist_lzf, H5P_DEFAULT);
-   if (id->flags_did < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to create flags dataset");
-       pthread_exit(NULL);
-   }
-
-   id->visdata_fs  = H5Dget_space(id->visdata_did);
-   if (id->visdata_fs < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to get visdata filespace\n");
-       pthread_exit(NULL);
-   }
-   id->flags_fs    = H5Dget_space(id->flags_did);
-   if (id->flags_fs < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to get flags filespace\n");
-       pthread_exit(NULL);
-   }
-   id->nsamples_fs = H5Dget_space(id->nsamples_did);
-   if (id->nsamples_fs < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to get nsamples filespace\n");
-       pthread_exit(NULL);
-   }
-
-   H5Pclose(plist);
-   H5Pclose(plist_lzf);
-   H5Sclose(file_space);
-}
-
-/* Create the extensible header entries which have dimensions ~Nblts.
- * These are:
- * Header/uvw_array (Nblts x 3)
- * Header/time_array (Nblts)
- * Header/integration_time (Nblts)
- * Header/ant_1_array (Nblts)
- * Header/ant_2_array (Nblts)
- */
-#define DIM1 1
-#define DIM2 2
-static void init_headers_dataset(hdf5_id_t *id) {
-   hsize_t dims1[DIM1] = {bcnts_per_file};
-   hsize_t chunk_dims1[DIM1] = {1};
-
-   hid_t file_space = H5Screate_simple(DIM1, dims1, NULL);
-   hid_t plist = H5Pcreate(H5P_DATASET_CREATE);
-
-   H5Pset_layout(plist, H5D_CHUNKED);
-   H5Pset_chunk(plist, DIM1, chunk_dims1);
-
-   // Now we have the dataspace properties, create the datasets
-   id->time_array_did = H5Dcreate(id->header_gid, "time_array", H5T_NATIVE_DOUBLE, file_space, H5P_DEFAULT, plist, H5P_DEFAULT);
-   if (id->time_array_did < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to create time_array dataset");
-       pthread_exit(NULL);
-   }
-
-   id->ant_1_array_did = H5Dcreate(id->header_gid, "ant_1_array", H5T_NATIVE_INT, file_space, H5P_DEFAULT, plist, H5P_DEFAULT);
-   if (id->ant_1_array_did < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to create ant_1_array dataset");
-       pthread_exit(NULL);
-   }
-
-   id->ant_2_array_did = H5Dcreate(id->header_gid, "ant_2_array", H5T_NATIVE_INT, file_space, H5P_DEFAULT, plist, H5P_DEFAULT);
-   if (id->ant_2_array_did < 0) {
-       hashpipe_error(__FUNCTION__, "Failed to create ant_2_array dataset");
-       pthread_exit(NULL);
-   }
-
-    id->integration_time_did = H5Dcreate(id->header_gid, "integration_time", H5T_NATIVE_DOUBLE, file_space, H5P_DEFAULT, plist, H5P_DEFAULT);
-    if (id->integration_time_did < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to create integration_time dataset");
-        pthread_exit(NULL);
-    }
-
-   id->time_array_fs = H5Dget_space(id->time_array_did);
-   id->ant_1_array_fs = H5Dget_space(id->ant_1_array_did);
-   id->ant_2_array_fs = H5Dget_space(id->ant_2_array_did);
-   id->integration_time_fs = H5Dget_space(id->integration_time_did);
-
-   H5Pclose(plist);
-   H5Sclose(file_space);
-}
-
-static void start_file(hdf5_id_t *id, char *template_fname, char *hdf5_fname, uint64_t file_obs_id, double file_start_t, char* tag) 
-{
-    hid_t dataset_id;
-    hid_t memtype;
-    hid_t stat;
-
-    id->file_id = open_hdf5_from_template(template_fname, hdf5_fname);
-
-    // Open HDF5 header groups and create data group
-    id->header_gid = H5Gopen(id->file_id, "Header", H5P_DEFAULT);
-    if (id->header_gid < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to open Header");
-        pthread_exit(NULL);
-    }
-    
-    id->extra_keywords_gid = H5Gopen(id->header_gid, "extra_keywords", H5P_DEFAULT);
-    if (id->extra_keywords_gid < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to open Header/extra_keywords");
-        pthread_exit(NULL);
-    }
-
-    id->data_gid = H5Gcreate(id->file_id, "Data", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (id->data_gid < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to create Data group");
-        pthread_exit(NULL);
-    }
-
-    // Create the "Data" group datasets. This function
-    // assigns all the dataset ids to the id struct
-    init_data_dataset(id);
-
-    // Create the "Header/*" group datasets. This function
-    // assigns all the dataset ids to the id struct
-    init_headers_dataset(id);
-
-    // Write meta-data values we know at file-open
-
-    // Write data tag
-    memtype = H5Tcopy(H5T_C_S1);
-    stat = H5Tset_size(memtype, 128);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to set size of tag memtype");
-    }
-    dataset_id = H5Dopen(id->extra_keywords_gid, "tag", H5P_DEFAULT);
-    if (dataset_id < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to open Header/tag");
-    }
-    stat = H5Dwrite(dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, tag);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to write Header/tag");
-    }
-    stat = H5Dclose(dataset_id);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close Header/tag");
-    }
-
-    // obs_id
-    dataset_id = H5Dopen(id->extra_keywords_gid, "obs_id", H5P_DEFAULT);
-    if (dataset_id < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to open Header/extra_keywords/obs_id");
-    }
-    stat = H5Dwrite(dataset_id, H5T_STD_I64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &file_obs_id);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to write Header/extra_keywords/obs_id");
-    }
-    stat = H5Dclose(dataset_id);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close Header/extra_keywords/obs_id");
-    }
-
-    // version
-    dataset_id = H5Dopen(id->extra_keywords_gid, "corr_ver", H5P_DEFAULT);
-    if (dataset_id < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to open Header/extra_keywords/corr_ver");
-    }
-    memtype = H5Tcopy(H5T_C_S1);
-    stat = H5Tset_size(memtype, VERSION_BYTES);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to set size of corr_ver memtype");
-    }
-    stat = H5Dwrite(dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, ver);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to write Header/extra_keywords/corr_ver");
-    }
-    stat = H5Dclose(dataset_id);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close Header/extra_keywords/corr_ver");
-    }
-
-    // startt
-    dataset_id = H5Dopen(id->extra_keywords_gid, "startt", H5P_DEFAULT);
-    if (dataset_id < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to open Header/extra_keywords/startt");
-    }
-    stat = H5Dwrite(dataset_id, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &file_start_t);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to write Header/extra_keywords/startt");
-    }
-    stat = H5Dclose(dataset_id);
-    if (stat < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close Header/extra_keywords/startt");
-    }
-}
-
-
-static void close_file(hdf5_id_t *id, double file_stop_t, double file_duration, uint64_t file_nblts) {
-    hid_t dataset_id;
-    dataset_id = H5Dopen(id->extra_keywords_gid, "stopt", H5P_DEFAULT);
-    H5Dwrite(dataset_id, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &file_stop_t);
-    H5Dclose(dataset_id);
-    dataset_id = H5Dopen(id->extra_keywords_gid, "duration", H5P_DEFAULT);
-    H5Dwrite(dataset_id, H5T_IEEE_F64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &file_duration);
-    H5Dclose(dataset_id);
-    dataset_id = H5Dopen(id->header_gid, "Nblts", H5P_DEFAULT);
-    H5Dwrite(dataset_id, H5T_STD_I64LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &file_nblts);
-    H5Dclose(dataset_id);
-
-    // Close datasets
-    if (H5Dclose(id->visdata_did) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close visdata dataset");
-    }
-    if (H5Dclose(id->flags_did) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close flags dataset");
-    }
-    if (H5Dclose(id->nsamples_did) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close nsamples dataset");
-    }
-    if (H5Dclose(id->time_array_did) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close nsamples dataset");
-    }
-    if (H5Dclose(id->ant_1_array_did) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close nsamples dataset");
-    }
-    if (H5Dclose(id->ant_2_array_did) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close nsamples dataset");
-    }
-    if (H5Dclose(id->integration_time_did) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close nsamples dataset");
-    }
-
-    // Close groups
-    if (H5Gclose(id->extra_keywords_gid) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close extra_keywords group");
-    }
-    if (H5Gclose(id->header_gid) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close header group");
-    }
-    if (H5Gclose(id->data_gid) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close data group");
-    }
-
-    // Close file
-    if (H5Fflush(id->file_id, H5F_SCOPE_GLOBAL) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to flush file");
-    }
-    if (H5Fclose(id->file_id) < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close file");
-    }
-}
-
-static void close_filespaces(hdf5_id_t *id) 
-{
-    H5Sclose(id->visdata_fs);
-    H5Sclose(id->flags_fs);
-    H5Sclose(id->nsamples_fs);
-    H5Sclose(id->time_array_fs);
-    H5Sclose(id->ant_1_array_fs);
-    H5Sclose(id->ant_2_array_fs);
-    H5Sclose(id->integration_time_fs);
-}
-
-// The data in the files should be indexed in real antennas numbers, not 
-// in correlator numbers. Get the corr_to_hera map from header to get right labelling.
-/* Read the correlator to hera_antennas map from an HDF5 file via the 
-   Header/corr_to_hera_map dataset */
-static void get_corr_to_hera_map(hdf5_id_t *id, int *corr_to_hera_map) {
-    hid_t dataset_id;
-    herr_t status;
-    dataset_id = H5Dopen(id->header_gid, "corr_to_hera_map", H5P_DEFAULT);
-    if (dataset_id < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to open Header/corr_to_hera_map dataset");
-        pthread_exit(NULL);
-    }
-    status = H5Dread(dataset_id, H5T_STD_I32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, corr_to_hera_map);
-    if (status < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to read Header/corr_to_hera_map dataset");
-        pthread_exit(NULL);
-    }
-    status = H5Dclose(dataset_id);
-    if (status < 0) {
-        hashpipe_error(__FUNCTION__, "Failed to close Header/corr_to_hera_map dataset");
-        pthread_exit(NULL);
-    }
-}
-
 
 /* Get the integration time for each baseline from header (set by config file) */
 static void get_integration_time(hdf5_id_t *id, double *integration_time_buf, uint32_t acc_len) {
@@ -583,7 +340,7 @@ static void get_integration_time(hdf5_id_t *id, double *integration_time_buf, ui
 
     for(i=0; i< bcnts_per_file; i++){
        integration_time_buf[i] *= acc_len * TIME_DEMUX * 2L * N_CHAN_TOTAL_GENERATED/(double)FENG_SAMPLE_RATE;
-    } 
+    }
 }
 
 /*
@@ -612,48 +369,23 @@ static double compute_jd_from_mcnt(uint64_t mcnt, uint64_t sync_time_ms, double 
 }
 
 /* 
- * Write N_BL_PER_WRITE bcnts to the dataset, at the right offset
+ * Write N_BL_PER_WRITE bcnts to the dataset
  */
-static void write_baseline_index(hdf5_id_t *id, hsize_t bcnt, hsize_t nblts, hid_t mem_space, 
-                                 uint64_t *visdata_buf, hbool_t *flags, float *nsamples)
+static void write_baseline_index(FILE *fstream, size_t nblts, uint64_t *visdata_buf)
 {
-    hsize_t start[N_DATA_DIMS] = {bcnt, 0, 0, 0};
-    hsize_t count[N_DATA_DIMS] = {nblts, 1, N_CHAN_PROCESSED, N_STOKES};
+  // 8 bytes per element (4 bytes each real + imaginary)
+  size_t nelem = 8 * nblts * N_CHAN_PROCESSED * N_STOKES;
 
-    // Data
-    if (H5Sselect_hyperslab(id->visdata_fs, H5S_SELECT_SET, start, NULL, count, NULL) <0){
-       hashpipe_error(__FUNCTION__, "Error selecting data hyperslab from: %d to %d", bcnt, nblts);
-    }
-    if (H5Dwrite(id->visdata_did, complex_id, mem_space, id->visdata_fs, H5P_DEFAULT, visdata_buf) <0){
-       hashpipe_error(__FUNCTION__, "Error writing data to file");
-    }
-
-    // nsamples
-    if (H5Sselect_hyperslab(id->nsamples_fs, H5S_SELECT_SET, start, NULL, count, NULL) <0){
-       hashpipe_error(__FUNCTION__, "Error selecting hyperslab of nsamples");
-    }
-    if (H5Dwrite(id->nsamples_did, H5T_IEEE_F32LE, mem_space, id->nsamples_fs, H5P_DEFAULT, nsamples) <0){
-       hashpipe_error(__FUNCTION__, "Error writing nsamples to file");
-    }
-
-    // flags
-    if (H5Sselect_hyperslab(id->flags_fs, H5S_SELECT_SET, start, NULL, count, NULL) <0){
-       hashpipe_error(__FUNCTION__, "Error selecting flags hyperslab");
-    }
-    if (H5Dwrite(id->flags_did, boolenumtype, mem_space, id->flags_fs, H5P_DEFAULT, flags) <0){
-       hashpipe_error(__FUNCTION__, "Error writing flags to file");
-    }
-
+  // write to open file
+  fwrite(visdata_buf, nelem, 1, fstream);
 }
-
 
 /* 
  * Write information to the hdf5 header.
  * Write: time, ant0, ant1
  */
-
 static void write_header(hdf5_id_t *id, double *time_array_buf, int *ant_0_array, int *ant_1_array, double *integration_time_buf)
-{  
+{
    // time stamp of integration
    if (H5Dwrite(id->time_array_did, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, time_array_buf) < 0) {
        hashpipe_error(__FUNCTION__, "Error writing time_array");
@@ -785,24 +517,8 @@ static void add_mc_obs_pthread(char *fname)
 
 static int init(hashpipe_thread_args_t *args)
 {
-    //hashpipe_status_t st = args->st;
-    //if (register_lzf() < 0) {
-    //    hashpipe_error(__FUNCTION__, "error registering LZF filter");
-    //    pthread_exit(NULL);
-    //}
     fprintf(stdout, "Initializing Catcher disk thread\n");
 
-    // generate the complex data type
-    complex_id = H5Tcreate(H5T_COMPOUND, 8);
-    H5Tinsert(complex_id, "r", 0, H5T_STD_I32LE);
-    H5Tinsert(complex_id, "i", 4, H5T_STD_I32LE);
-
-    // generate the boolean data type
-    bool_t val;
-    boolenumtype = H5Tcreate(H5T_ENUM, sizeof(bool_t));
-    H5Tenum_insert(boolenumtype, "FALSE", CPTR(val, FALSE ));
-    H5Tenum_insert(boolenumtype, "TRUE",  CPTR(val, TRUE  ));
-    //H5Tinsert(boolean_id, "FLAG", 0, boolenumtype);
     return 0;
 }
 
@@ -831,11 +547,11 @@ static void *run(hashpipe_thread_args_t * args)
     uint64_t elapsed_w_ns = 0;
     float bl_t_ns = 0.0;
     float bl_w_ns = 0.0;
-     
+
     // Buffers for file name strings
-    char template_fname[128];
-    char hdf5_diff_fname[128];
-    char hdf5_sum_fname[128];
+    char hdf5_meta_fname[128];
+    char sum_fname[128];
+    char diff_fname[128];
     char data_directory[128];
     char hdf5_mc_fname[128];
 
@@ -908,11 +624,11 @@ static void *run(hashpipe_thread_args_t * args)
     pthread_t thread_id; // for calling hera_mc command
     int rc;
 
-    hdf5_id_t sum_file;
+    FILE sum_file;
     #ifndef SKIP_DIFF
-    hdf5_id_t diff_file;
+    FILE diff_file;
     #endif
-    
+
     // aligned_alloc because we're going to use 256-bit AVX instructions
     int32_t *bl_buf_sum  = (int32_t *)aligned_alloc(32, N_BL_PER_WRITE * N_CHAN_PROCESSED * N_STOKES * 2 * sizeof(int32_t));
     int32_t *bl_buf_diff = (int32_t *)aligned_alloc(32, N_BL_PER_WRITE * N_CHAN_PROCESSED * N_STOKES * 2 * sizeof(int32_t));
@@ -925,17 +641,6 @@ static void *run(hashpipe_thread_args_t * args)
     double *time_array_buf       = (double *)malloc(1 * sizeof(double));
     int *ant_0_array             =    (int *)malloc(1 * sizeof(int));
     int *ant_1_array             =    (int *)malloc(1 * sizeof(int));
-
-    // Allocate an array of bools for flags and n_samples
-    hbool_t *flags     = (hbool_t *) malloc(N_BL_PER_WRITE * N_CHAN_PROCESSED * N_STOKES * sizeof(hbool_t));
-    float *nsamples = (float *)malloc(N_BL_PER_WRITE * N_CHAN_PROCESSED * N_STOKES * sizeof(float));
-
-    memset(flags, 0, N_BL_PER_WRITE * N_CHAN_PROCESSED * N_STOKES * sizeof(hbool_t));
-    // PLP: we want nsamples=1 for valid data, and memset Does The Wrong Thing for non-integer data.
-    // Someday we would like nsamples to also reflect the number of dropped packets.
-    for (i=0; i<(N_BL_PER_WRITE * N_CHAN_PROCESSED * N_STOKES); i++) {
-      nsamples[i] = 1.0;
-    }
 
     // Define memory space of a block
     hsize_t dims[N_DATA_DIMS] = {N_BL_PER_WRITE, 1, N_CHAN_PROCESSED, N_STOKES};
@@ -1091,7 +796,6 @@ static void *run(hashpipe_thread_args_t * args)
           ant_0_array          =    (int *)realloc(ant_0_array,          bcnts_per_file * sizeof(int));
           ant_1_array          =    (int *)realloc(ant_1_array,          bcnts_per_file * sizeof(int));
 
-    
           idle = 0;
           if (use_redis) {
               // Create the "corr:is_taking_data" hash. This will be set to 
@@ -1205,7 +909,7 @@ static void *run(hashpipe_thread_args_t * args)
 
                  // copy data
                  nbls = break_bcnt - strt_bcnt;
-                 
+
                  if (nbls > 0){
                     // select the hyperslab of the shared mem to write to file
                     hsize_t start[N_DATA_DIMS] = {0, 0, 0 ,0};
@@ -1314,19 +1018,21 @@ static void *run(hashpipe_thread_args_t * args)
                chmod(data_directory, 0777);
              }
 
-             sprintf(hdf5_sum_fname, "%d/zen.%7.5lf.sum.uvh5", int_jd, julian_time);
-             fprintf(stdout, "Opening new file %s\n", hdf5_sum_fname);
-             start_file(&sum_file, template_fname, hdf5_sum_fname, file_obs_id, file_start_t, tag);
+             sprintf(sum_fname, "%d/zen.%7.5lf.sum.dat", int_jd, julian_time);
+             sprintf(hdf5_meta_fname, "%d/zen.%7.5lf.meta.hdf5", int_jd, julian_time);
+             fprintf(stdout, "Opening new file %s\n", sum_fname);
+             meta_fid = create_hdf5_metadata_file(&hdf5_meta_fname);
+             start_file(&sum_fname, &sum_file);
              if (use_redis) {
-               redisCommand(c, "RPUSH rtp:file_list %s", hdf5_sum_fname);
+               redisCommand(c, "RPUSH rtp:file_list %s", sum_fname);
              }
 
              #ifndef SKIP_DIFF
-               sprintf(hdf5_diff_fname, "%d/zen.%7.5lf.diff.uvh5", int_jd, julian_time);
-               fprintf(stdout, "Opening new file %s\n", hdf5_diff_fname);
-               start_file(&diff_file, template_fname, hdf5_diff_fname, file_obs_id, file_start_t, tag);
+               sprintf(diff_fname, "%d/zen.%7.5lf.diff.dat", int_jd, julian_time);
+               fprintf(stdout, "Opening new file %s\n", diff_fname);
+               start_file(&diff_fname, &diff_file);
                if (use_redis) {
-                 redisCommand(c, "RPUSH rtp:file_list %s", hdf5_diff_fname);
+                 redisCommand(c, "RPUSH rtp:file_list %s", diff_fname);
                }
              #endif
 
@@ -1335,7 +1041,7 @@ static void *run(hashpipe_thread_args_t * args)
              //get_ant_pos(&sum_file, ant_pos);
              get_corr_to_hera_map(&sum_file, corr_to_hera_map);
              get_integration_time(&sum_file, integration_time_buf, acc_len);
-       
+
              // Copy data to the right location
              nbls = stop_bcnt - break_bcnt + 1;
 
@@ -1353,12 +1059,12 @@ static void *run(hashpipe_thread_args_t * args)
                 file_offset = break_bcnt - curr_file_bcnt;
 
                 for(b=0; b< nbls; b++){
-                   ant_0_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_0[block_offset+b]];
-                   ant_1_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_1[block_offset+b]];
-                   time_array_buf[file_offset+b] = compute_jd_from_mcnt(header.mcnt[block_offset+b], sync_time_ms, 
-                                                   integration_time_buf[file_offset+b]);
+                  blt_idx[file_offset+b].i  = corr_to_hera_map[header.ant_pair_0[block_offset+b]];
+                  blt_idx[file_offset+b].j  = corr_to_hera_map[header.ant_pair_1[block_offset+b]];
+                  blt_idx[file_offset+b].jd = compute_jd_from_mcnt(header.mcnt[block_offset+b], sync_time_ms,
+                                                                   integration_time_buf[file_offset+b]);
                 }
-                
+
                 clock_gettime(CLOCK_MONOTONIC, &w_start);
                 write_baseline_index(&sum_file, file_offset, nbls, mem_space_bl_per_write, 
                                     (uint64_t *)bl_buf_sum, flags, nsamples);
