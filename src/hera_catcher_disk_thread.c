@@ -94,7 +94,7 @@ static void close_data_file(FILE *fp)
 }
 
 #define VERSION_BYTES 32
-static void write_metadata(hid_t *file_id, float t0, float mcnt, double *time_array,
+static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *time_array,
                            int *ant_0_array, int *ant_1_array, double *integration_time,
                            int nblt)
 {
@@ -110,12 +110,12 @@ static void write_metadata(hid_t *file_id, float t0, float mcnt, double *time_ar
   }
 
   // write t0
-  dset_id = H5Dcreate(file_id, "t0", H5T_NATIVE_FLOAT, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "t0", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make t0 dataset");
     pthread_exit(NULL);
   }
-  status = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, &t0);
+  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, &t0);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to write t0");
     pthread_exit(NULL);
@@ -127,12 +127,12 @@ static void write_metadata(hid_t *file_id, float t0, float mcnt, double *time_ar
   }
 
   // write mcnt
-  dset_id = H5Dcreate(file_id, "mcnt", H5T_NATIVE_FLOAT, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "mcnt", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make mcnt dataset");
     pthread_exit(NULL);
   }
-  status = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, &mcnt);
+  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, &mcnt);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to write mcnt");
     pthread_exit(NULL);
@@ -340,9 +340,9 @@ static double mcnt2time(uint64_t mcnt, uint64_t sync_time_ms)
     return (sync_time_ms / 1000.) + (mcnt * (2L * N_CHAN_TOTAL_GENERATED / (double)FENG_SAMPLE_RATE));
 }
 
-/* 
+/*
  *  Compute JD for the given gps time
- 
+
 static double unix2julian(double unixtime)
 {
     return (2440587.5 + (unixtime / (double)(86400.0)));
@@ -353,11 +353,11 @@ static double compute_jd_from_mcnt(uint64_t mcnt, uint64_t sync_time_ms, double 
 {
    double unix_time = (sync_time_ms / 1000.) + (mcnt * (2L * N_CHAN_TOTAL_GENERATED / (double)FENG_SAMPLE_RATE));
    unix_time = unix_time - integration_time/2;
-   
+
    return (2440587.5 + (unix_time / (double)(86400.0)));
 }
 
-/* 
+/*
  * Write N_BL_PER_WRITE bcnts to the dataset
  */
 static void write_baseline_index(FILE *fstream, size_t nblts, uint64_t *visdata_buf)
@@ -604,10 +604,6 @@ static void *run(hashpipe_thread_args_t * args)
     int *ant_0_array             =    (int *)malloc(1 * sizeof(int));
     int *ant_1_array             =    (int *)malloc(1 * sizeof(int));
 
-    // Define memory space of a block
-    hsize_t dims[N_DATA_DIMS] = {N_BL_PER_WRITE, 1, N_CHAN_PROCESSED, N_STOKES};
-    hid_t mem_space_bl_per_write = H5Screate_simple(N_DATA_DIMS, dims, NULL);
-
     while (run_threads()) {
         // Note waiting status,
         hashpipe_status_lock_safe(&st);
@@ -703,10 +699,6 @@ static void *run(hashpipe_thread_args_t * args)
         elapsed_w_ns = 0.0;
         elapsed_t_ns = 0.0;
 
-        // Get template filename from sharedmem
-        hashpipe_status_lock_safe(&st);
-        hgets(st.buf, "HDF5TPLT", 128, template_fname);
-
         // Get time that F-engines were last sync'd
         hgetu8(st.buf, "SYNCTIME", &sync_time_ms);
 
@@ -734,7 +726,7 @@ static void *run(hashpipe_thread_args_t * args)
           hashpipe_status_lock_safe(&st);
           hputu4(st.buf, "TRIGGER", 0);
           hputu4(st.buf, "NDONEFIL", file_cnt);
-            
+
           // Get baseline distribution from sharedmem -- this has to be done here
           // to ensure that redis database is updated before reading.
           hgetu8(st.buf,"BDANANT", &Nants);
@@ -799,13 +791,13 @@ static void *run(hashpipe_thread_args_t * args)
         // to a new intergation arrives, close the old file and start a new file.
 
         clock_gettime(CLOCK_MONOTONIC, &start);
-             
+
         for (bctr=0 ; bctr< BASELINES_PER_BLOCK; bctr += N_BL_PER_WRITE){
 
           // We write N_BL_PER_WRITE at a time.
           // these variables store the baseline numbers for the start and end of these blocks
           strt_bcnt = header.bcnt[bctr];
-          stop_bcnt = header.bcnt[bctr+N_BL_PER_WRITE-1]; 
+          stop_bcnt = header.bcnt[bctr+N_BL_PER_WRITE-1];
 
           clock_gettime(CLOCK_MONOTONIC, &t_start);
           compute_sum_diff(db_in32, bl_buf_sum, bl_buf_diff, bctr);
@@ -828,11 +820,10 @@ static void *run(hashpipe_thread_args_t * args)
                 file_offset = strt_bcnt - curr_file_bcnt;
 
                 clock_gettime(CLOCK_MONOTONIC, &w_start);
-                write_baseline_index(&sum_file, file_offset, N_BL_PER_WRITE, mem_space_bl_per_write, 
-                                    (uint64_t *)bl_buf_sum, flags, nsamples);
+
+                write_baseline_index(&sum_file, N_BL_PER_WRITE, (uint64_t *)bl_buf_sum);
                 #ifndef SKIP_DIFF
-                write_baseline_index(&diff_file, file_offset, N_BL_PER_WRITE, mem_space_bl_per_write, 
-                                    (uint64_t *)bl_buf_diff, flags, nsamples);
+                write_baseline_index(&diff_file, N_BL_PER_WRITE, (uint64_t *)bl_buf_diff);
                 #endif
 
                 clock_gettime(CLOCK_MONOTONIC, &w_stop);
@@ -841,10 +832,10 @@ static void *run(hashpipe_thread_args_t * args)
                    ant_0_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_0[bctr+b]];
                    ant_1_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_1[bctr+b]];
 
-                   time_array_buf[file_offset+b] = compute_jd_from_mcnt(header.mcnt[bctr+b], sync_time_ms,  
+                   time_array_buf[file_offset+b] = compute_jd_from_mcnt(header.mcnt[bctr+b], sync_time_ms,
                                                    integration_time_buf[file_offset+b]);
                 }
-                
+
                 file_nblts += N_BL_PER_WRITE;
 
                 w_ns = ELAPSED_NS(w_start, w_stop);
@@ -855,7 +846,6 @@ static void *run(hashpipe_thread_args_t * args)
           } else {
              // the block has a file boundary OR this block starts with a new file.
 
-             
              // Calculate the bcnt where we need to start a new file.
              // This block might start at a new file. Otherwise
              // We need a new file at the next bcnts_per_file boundary.
@@ -868,29 +858,16 @@ static void *run(hashpipe_thread_args_t * args)
              // If there is an open file, copy the relevant part of the block 
              // and close the file. Open a new file for the rest of the block.
              if (curr_file_bcnt >=0){
-
                  // copy data
                  nbls = break_bcnt - strt_bcnt;
 
                  if (nbls > 0){
-                    // select the hyperslab of the shared mem to write to file
-                    hsize_t start[N_DATA_DIMS] = {0, 0, 0 ,0};
-                    hsize_t count[N_DATA_DIMS] = {nbls, 1, N_CHAN_PROCESSED, N_STOKES};
-
-                    status = H5Sselect_hyperslab(mem_space_bl_per_write, H5S_SELECT_SET, start, NULL, count, NULL);
-                    if (status < 0){
-                       hashpipe_error(__FUNCTION__, "Failed to select hyperslab of shared databuf\n");
-                       pthread_exit(NULL);
-                    }
-
                     file_offset = strt_bcnt - curr_file_bcnt;
 
                     clock_gettime(CLOCK_MONOTONIC, &w_start);
-                    write_baseline_index(&sum_file, file_offset, nbls, mem_space_bl_per_write, 
-                                        (uint64_t *)bl_buf_sum, flags, nsamples);
+                    write_baseline_index(&sum_file, nbls, (uint64_t *)bl_buf_sum);
                     #ifndef SKIP_DIFF
-                      write_baseline_index(&diff_file, file_offset, nbls, mem_space_bl_per_write, 
-                                          (uint64_t *)bl_buf_diff, flags, nsamples);
+                    write_baseline_index(&diff_file, nbls, (uint64_t *)bl_buf_diff);
                     #endif
 
                     clock_gettime(CLOCK_MONOTONIC, &w_stop);
@@ -898,17 +875,10 @@ static void *run(hashpipe_thread_args_t * args)
                     for(b=0; b< nbls; b++){
                        ant_0_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_0[bctr+b]];
                        ant_1_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_1[bctr+b]];
-                       time_array_buf[file_offset+b] = compute_jd_from_mcnt(header.mcnt[bctr+b], sync_time_ms, 
+                       time_array_buf[file_offset+b] = compute_jd_from_mcnt(header.mcnt[bctr+b], sync_time_ms,
                                                        integration_time_buf[file_offset+b]);
                     }
                     file_nblts += nbls;
-
-                    // reset selection
-                    status = H5Sselect_all(mem_space_bl_per_write);
-                    if (status < 0){
-                       hashpipe_error(__FUNCTION__, "Failed to reset selection\n");
-                       pthread_exit(NULL);
-                    }
 
                     w_ns = ELAPSED_NS(w_start, w_stop);
                     elapsed_w_ns += w_ns;
@@ -921,30 +891,29 @@ static void *run(hashpipe_thread_args_t * args)
                  file_stop_t = gps_time;
                  file_duration = file_stop_t - file_start_t;
 
-                 write_header(&sum_file, time_array_buf, ant_0_array, ant_1_array, integration_time_buf);
-                 close_filespaces(&sum_file);
-                 close_file(&sum_file, file_stop_t, file_duration, file_nblts);
+                 write_metadata(&meta_fid, sync_time_ms, header.mcnt[bctr+nbls],
+                                time_array_buf, ant_0_array, ant_1_array, integration_time_buf,
+                                file_nblts);
+                 close_hdf5_metadata_file(&meta_fid);
+                 close_data_file(&sum_file);
 
-                 #ifndef SKIP_DIFF 
-                 write_header(&diff_file, time_array_buf, ant_0_array, ant_1_array, integration_time_buf);
-                 close_filespaces(&diff_file);
-                 close_file(&diff_file, file_stop_t, file_duration, file_nblts);
+                 #ifndef SKIP_DIFF
+                 close_data_file(&diff_file);
                  #endif
 
                  file_cnt += 1;
 
                  // add file to M&C
-                 // add_mc_obs(hdf5_sum_fname); // XXX diagnosing add_obs error
-                 strcpy(hdf5_mc_fname, hdf5_sum_fname);
-                 rc = pthread_create(&thread_id, NULL, add_mc_obs_pthread, hdf5_mc_fname);
-                 if (rc) {
-                   fprintf(stderr, "Error launching M&C thread\n");
-                 }
+                 /* strcpy(hdf5_mc_fname, hdf5_sum_fname); */
+                 /* rc = pthread_create(&thread_id, NULL, add_mc_obs_pthread, hdf5_mc_fname); */
+                 /* if (rc) { */
+                 /*   fprintf(stderr, "Error launching M&C thread\n"); */
+                 /* } */
 
                  hashpipe_status_lock_safe(&st);
                  hputr4(st.buf, "FILESEC", file_duration);
                  hputi8(st.buf, "NDONEFIL", file_cnt);
-                 hashpipe_status_unlock_safe(&st); 
+                 hashpipe_status_unlock_safe(&st);
 
                  // If this is the last file, mark this block done and get out of the loop
                  if (file_cnt >= nfiles) {
@@ -967,7 +936,7 @@ static void *run(hashpipe_thread_args_t * args)
              fprintf(stdout, "Curr file bcnt: %d\n", curr_file_bcnt);
              fprintf(stdout, "Curr file mcnt: %ld\n", header.mcnt[block_offset]);
              gps_time = mcnt2time(header.mcnt[block_offset], sync_time_ms);
-             julian_time = 2440587.5 + (gps_time / (double)(86400.0)); 
+             julian_time = 2440587.5 + (gps_time / (double)(86400.0));
              file_start_t = gps_time;
              file_obs_id = (int64_t)gps_time;
 
@@ -1001,23 +970,13 @@ static void *run(hashpipe_thread_args_t * args)
              // Get the antenna positions and baseline orders
              // These are needed for populating the ant_[1|2]_array and uvw_array
              //get_ant_pos(&sum_file, ant_pos);
-             get_corr_to_hera_map(&sum_file, corr_to_hera_map);
-             get_integration_time(&sum_file, integration_time_buf, acc_len);
+             get_corr_to_hera_map(&c, corr_to_hera_map);
+             get_integration_time(&c, integration_time_buf, acc_len);
 
              // Copy data to the right location
              nbls = stop_bcnt - break_bcnt + 1;
 
              if (nbls > 0){
-                if (nbls % N_BL_PER_WRITE){
-                   hsize_t start[N_DATA_DIMS] = {block_offset - bctr, 0, 0, 0};
-                   hsize_t count[N_DATA_DIMS] = {nbls, 1, N_CHAN_PROCESSED, N_STOKES};
-
-                   status = H5Sselect_hyperslab(mem_space_bl_per_write, H5S_SELECT_SET, start, NULL, count, NULL);
-                   if (status < 0){
-                      hashpipe_error(__FUNCTION__, "Failed to select hyperslab of shared databuf\n");
-                      pthread_exit(NULL);
-                   }
-                }
                 file_offset = break_bcnt - curr_file_bcnt;
 
                 for(b=0; b< nbls; b++){
@@ -1028,22 +987,13 @@ static void *run(hashpipe_thread_args_t * args)
                 }
 
                 clock_gettime(CLOCK_MONOTONIC, &w_start);
-                write_baseline_index(&sum_file, file_offset, nbls, mem_space_bl_per_write, 
-                                    (uint64_t *)bl_buf_sum, flags, nsamples);
+                write_baseline_index(&sum_file, nbls, (uint64_t *)bl_buf_sum);
                 #ifndef SKIP_DIFF
-                  write_baseline_index(&diff_file, file_offset, nbls, mem_space_bl_per_write, 
-                                      (uint64_t *)bl_buf_diff, flags, nsamples);
+                write_baseline_index(&diff_file, nbls, (uint64_t *)bl_buf_diff);
                 #endif
-                clock_gettime(CLOCK_MONOTONIC, &w_stop); 
+                clock_gettime(CLOCK_MONOTONIC, &w_stop);
 
                 file_nblts += nbls;
-
-                //reset selection
-                status = H5Sselect_all(mem_space_bl_per_write);
-                if (status < 0){
-                   hashpipe_error(__FUNCTION__, "Failed to reset selection\n");
-                   pthread_exit(NULL);
-                }
 
                 w_ns = ELAPSED_NS(w_start, w_stop);
                 elapsed_w_ns += w_ns;
@@ -1058,7 +1008,7 @@ static void *run(hashpipe_thread_args_t * args)
         // Compute processing time for this block
         bl_t_ns = (float)elapsed_t_ns / BASELINES_PER_BLOCK;
         bl_w_ns = (float)elapsed_w_ns / BASELINES_PER_BLOCK;
- 
+
         hashpipe_status_lock_safe(&st);
         hputr4(st.buf, "DISKTBNS", bl_t_ns);
         hputi8(st.buf, "DISKTMIN", min_t_ns);
@@ -1066,14 +1016,14 @@ static void *run(hashpipe_thread_args_t * args)
         hputr4(st.buf, "DISKWBNS", bl_w_ns);
         hputi8(st.buf, "DISKWMIN", min_w_ns);
         hputi8(st.buf, "DISKWMAX", max_w_ns);
-         
+
         hputi8(st.buf, "DISKWBL", w_ns/BASELINES_PER_BLOCK);
 
         hgetr4(st.buf, "DISKMING", &min_gbps);
         #ifndef SKIP_DIFF
           gbps = (float)(2 * BASELINES_PER_BLOCK*N_CHAN_PROCESSED*N_STOKES*64L)/ELAPSED_NS(start,finish);
         #else
-          gbps = (float)(BASELINES_PER_BLOCK*N_CHAN_PROCESSED*N_STOKES*64L)/ELAPSED_NS(start,finish); 
+          gbps = (float)(BASELINES_PER_BLOCK*N_CHAN_PROCESSED*N_STOKES*64L)/ELAPSED_NS(start,finish);
         #endif
         hputr4(st.buf, "DISKGBPS", gbps);
         hputr4(st.buf, "DUMPMS", ELAPSED_NS(start,finish) / 1000000.0);
@@ -1096,7 +1046,7 @@ static void *run(hashpipe_thread_args_t * args)
     // Thread success!
     return NULL;
 }
- 
+
 static hashpipe_thread_desc_t hera_catcher_disk_thread_bda = {
     name: "hera_catcher_disk_thread_bda",
     skey: "DISKSTAT",
