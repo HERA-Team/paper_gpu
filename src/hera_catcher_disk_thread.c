@@ -23,7 +23,6 @@
 
 #include "hashpipe.h"
 #include "paper_databuf.h"
-#include "lzf_filter.h"
 
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
@@ -46,7 +45,7 @@
 // 0xaaaaaaaa value, which is negative for signed ints.
 #define INVALID_INDICATOR (0xaa)
 
-#define MAXSTR 1400
+#define MAXSTR 600000
 
 static uint64_t bcnts_per_file;
 
@@ -296,7 +295,8 @@ static void get_integration_time(redisContext *c, double *integration_time_buf, 
   char *line;
   char *saveptr = NULL;
   redisReply *reply;
-  int i, intbin;
+  int i;
+  double inttime;
 
   // read mapping from redis
   int_bin_str[0] = EOF;
@@ -317,9 +317,9 @@ static void get_integration_time(redisContext *c, double *integration_time_buf, 
   line = strtok_r(redis_mapping, "\n", &saveptr);
   i = 0;
   while (line != NULL) {
-    sscanf(line, "%d", &intbin);
+    sscanf(line, "%f", &inttime);
     line = strtok_r(NULL, "\n", &saveptr);
-    integration_time_buf[i] = intbin;
+    integration_time_buf[i] = inttime;
     i+=1;
   }
 
