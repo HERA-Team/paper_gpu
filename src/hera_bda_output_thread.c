@@ -78,8 +78,8 @@ typedef struct struct_pkt {
 // For BDA, 192 ants, 384 chan per pipeline -- 125 usec
 // #define PACKET_DELAY_NS (4 * 125 * 1000)
 
-// ARP removing factor of 2 for more headroom
-#define PACKET_DELAY_NS (2 * 125 * 1000)
+// ARP removing factor of 5/4 for more headroom; tested no packet loss
+#define PACKET_DELAY_NS (4 * 100 * 1000)
 
 
 // Open and connect a UDP socket to the given host and port.  Note that port is
