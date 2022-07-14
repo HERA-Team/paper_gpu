@@ -98,6 +98,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
                            int nblt)
 {
   hid_t dset_id, dspace_id, status, ver_tid;
+  uint64_t data;
   hsize_t dspace_dims[] = {nblt};
   char ver[VERSION_BYTES] = GIT_VERSION; // defined at compile time
 
@@ -142,6 +143,42 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
     pthread_exit(NULL);
   }
 
+  // write N_CHAN_PROCESSED
+  dset_id = H5Dcreate(file_id, "nfreq", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to make nfreq dataset");
+    pthread_exit(NULL);
+  }
+  data = N_CHAN_PROCESSED;
+  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, &data);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write nfreq");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close nfreq");
+    pthread_exit(NULL);
+  }
+
+  // write N_STOKES
+  dset_id = H5Dcreate(file_id, "nstokes", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to make nstokes dataset");
+    pthread_exit(NULL);
+  }
+  data = N_STOKES;
+  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, &data);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write nstokes");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close nstokes");
+    pthread_exit(NULL);
+  }
+
   // version
   ver_tid = H5Tcopy(H5T_C_S1);
   H5Tset_size(ver_tid, VERSION_BYTES);
@@ -152,12 +189,12 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
   status = H5Dwrite(dset_id, ver_tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, ver);
   if (status < 0) {
-    hashpipe_error(__FUNCTION__, "Failed to write Header/extra_keywords/corr_ver");
+    hashpipe_error(__FUNCTION__, "Failed to write corr_ver");
     pthread_exit(NULL);
   }
   status = H5Dclose(dataset_id);
   if (status < 0) {
-    hashpipe_error(__FUNCTION__, "Failed to close Header/extra_keywords/corr_ver");
+    hashpipe_error(__FUNCTION__, "Failed to close corr_ver");
     pthread_exit(NULL);
   }
   status = H5Sclose(dspace_id);
