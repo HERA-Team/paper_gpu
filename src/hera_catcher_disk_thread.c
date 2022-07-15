@@ -12,7 +12,6 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/types.h>
-#include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -78,9 +77,9 @@ static void close_hdf5_metadata_file(hid_t *file_id){
   }
 }
 
-static FILE open_data_file(char *filename)
+static FILE *open_data_file(char *filename)
 {
-  FILE *fp;
+  FILE *fp = NULL;
 
   fp = fopen(filename, "wb");
 
@@ -110,12 +109,12 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write t0
-  dset_id = H5Dcreate(file_id, "t0", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(&file_id, "t0", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make t0 dataset");
     pthread_exit(NULL);
   }
-  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, &t0);
+  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, &t0);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to write t0");
     pthread_exit(NULL);
@@ -127,12 +126,12 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write mcnt
-  dset_id = H5Dcreate(file_id, "mcnt", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(&file_id, "mcnt", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make mcnt dataset");
     pthread_exit(NULL);
   }
-  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, &mcnt);
+  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, &mcnt);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to write mcnt");
     pthread_exit(NULL);
@@ -144,13 +143,13 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write N_CHAN_PROCESSED
-  dset_id = H5Dcreate(file_id, "nfreq", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(&file_id, "nfreq", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make nfreq dataset");
     pthread_exit(NULL);
   }
   data = N_CHAN_PROCESSED;
-  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, &data);
+  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to write nfreq");
     pthread_exit(NULL);
@@ -162,13 +161,13 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write N_STOKES
-  dset_id = H5Dcreate(file_id, "nstokes", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(&file_id, "nstokes", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make nstokes dataset");
     pthread_exit(NULL);
   }
   data = N_STOKES;
-  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, &data);
+  status = H5Dwrite(dset_id, H5T_NATIVE_ULONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to write nstokes");
     pthread_exit(NULL);
@@ -182,7 +181,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   // version
   ver_tid = H5Tcopy(H5T_C_S1);
   H5Tset_size(ver_tid, VERSION_BYTES);
-  dset_id = H5Dcreate(file_id, "corr_ver", ver_tid, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(&file_id, "corr_ver", ver_tid, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make corr_ver dataset");
     pthread_exit(NULL);
@@ -192,7 +191,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
     hashpipe_error(__FUNCTION__, "Failed to write corr_ver");
     pthread_exit(NULL);
   }
-  status = H5Dclose(dataset_id);
+  status = H5Dclose(dset_id);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to close corr_ver");
     pthread_exit(NULL);
@@ -207,7 +206,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   dspace_id = H5Screate_simple(1, dspace_dims, NULL);
 
   // write ant_0_array
-  dset_id = H5Dcreate(file_id, "ant_0_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(&file_id, "ant_0_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create ant_0_array dataset");
     pthread_exit(NULL);
@@ -224,7 +223,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write ant_1_array
-  dset_id = H5Dcreate(file_id, "ant_1_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(&file_id, "ant_1_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create ant_1_array dataset");
     pthread_exit(NULL);
@@ -241,7 +240,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write time_array
-  dset_id = H5Dcreate(file_id, "time_array", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(&file_id, "time_array", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create time_array dataset");
     pthread_exit(NULL);
@@ -258,7 +257,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write integration_time
-  dset_id = H5Dcreate(file_id, "integration_time", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT);
+  dset_id = H5Dcreate(&file_id, "integration_time", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create integration_time dataset");
     pthread_exit(NULL);
@@ -351,7 +350,7 @@ static void get_integration_time(redisContext *c, double *integration_time_buf, 
     pthread_exit(NULL);
   }
 
-  line = strtok_r(redis_mapping, "\n", &saveptr);
+  line = strtok_r(int_bin_str, "\n", &saveptr);
   i = 0;
   while (line != NULL) {
     sscanf(line, "%f", &inttime);
@@ -623,9 +622,9 @@ static void *run(hashpipe_thread_args_t * args)
     pthread_t thread_id; // for calling hera_mc command
     int rc;
 
-    FILE sum_file;
+    FILE *sum_file;
     #ifndef SKIP_DIFF
-    FILE diff_file;
+    FILE *diff_file;
     #endif
 
     // aligned_alloc because we're going to use 256-bit AVX instructions
@@ -789,8 +788,8 @@ static void *run(hashpipe_thread_args_t * args)
 
           idle = 0;
           if (use_redis) {
-              // Create the "corr:is_taking_data" hash. This will be set to 
-              // state=False when data taking is complete. Or if this pipeline 
+              // Create the "corr:is_taking_data" hash. This will be set to
+              // state=False when data taking is complete. Or if this pipeline
               // exits the key will expire.
               redisCommand(c, "HMSET corr:is_taking_data state True time %d", (int)time(NULL));
               redisCommand(c, "EXPIRE corr:is_taking_data 60");
@@ -887,12 +886,12 @@ static void *run(hashpipe_thread_args_t * args)
              // This block might start at a new file. Otherwise
              // We need a new file at the next bcnts_per_file boundary.
              if (strt_bcnt % bcnts_per_file == 0){
-                break_bcnt = strt_bcnt;
+	       break_bcnt = strt_bcnt;
              } else {
-                 break_bcnt = ((strt_bcnt / bcnts_per_file) + 1) * bcnts_per_file;
+	       break_bcnt = ((strt_bcnt / bcnts_per_file) + 1) * bcnts_per_file;
              }
 
-             // If there is an open file, copy the relevant part of the block 
+             // If there is an open file, copy the relevant part of the block
              // and close the file. Open a new file for the rest of the block.
              if (curr_file_bcnt >=0){
                  // copy data
@@ -990,7 +989,7 @@ static void *run(hashpipe_thread_args_t * args)
              sprintf(hdf5_meta_fname, "%d/zen.%7.5lf.meta.hdf5", int_jd, julian_time);
              fprintf(stdout, "Opening new file %s\n", sum_fname);
              meta_fid = create_hdf5_metadata_file(&hdf5_meta_fname);
-             start_file(&sum_fname, &sum_file);
+             sum_file = open_data_file(&sum_fname);
              if (use_redis) {
                redisCommand(c, "RPUSH rtp:file_list %s", sum_fname);
              }
@@ -998,7 +997,7 @@ static void *run(hashpipe_thread_args_t * args)
              #ifndef SKIP_DIFF
                sprintf(diff_fname, "%d/zen.%7.5lf.diff.dat", int_jd, julian_time);
                fprintf(stdout, "Opening new file %s\n", diff_fname);
-               start_file(&diff_fname, &diff_file);
+               diff_file = open_data_file(&diff_fname);
                if (use_redis) {
                  redisCommand(c, "RPUSH rtp:file_list %s", diff_fname);
                }
@@ -1084,8 +1083,8 @@ static void *run(hashpipe_thread_args_t * args)
     return NULL;
 }
 
-static hashpipe_thread_desc_t hera_catcher_disk_thread_bda = {
-    name: "hera_catcher_disk_thread_bda",
+static hashpipe_thread_desc_t hera_catcher_disk_thread = {
+    name: "hera_catcher_disk_thread",
     skey: "DISKSTAT",
     init: init,
     run:  run,
@@ -1095,5 +1094,5 @@ static hashpipe_thread_desc_t hera_catcher_disk_thread_bda = {
 
 static __attribute__((constructor)) void ctor()
 {
-  register_hashpipe_thread(&hera_catcher_disk_thread_bda);
+  register_hashpipe_thread(&hera_catcher_disk_thread);
 }

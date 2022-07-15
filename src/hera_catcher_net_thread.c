@@ -685,8 +685,8 @@ static void *run(hashpipe_thread_args_t * args){
   return NULL;
 }
 
-static hashpipe_thread_desc_t hera_catcher_net_thread_bda = {
-    name: "hera_catcher_net_thread_bda",
+static hashpipe_thread_desc_t hera_catcher_net_thread = {
+    name: "hera_catcher_net_thread",
     skey: "CNETSTAT",
     init: init,
     run:  run,
@@ -696,7 +696,7 @@ static hashpipe_thread_desc_t hera_catcher_net_thread_bda = {
 
 static __attribute__((constructor)) void ctor()
 {
-  register_hashpipe_thread(&hera_catcher_net_thread_bda);
+  register_hashpipe_thread(&hera_catcher_net_thread);
 }
 
 // vi: set ts=8 sw=4 noet :
