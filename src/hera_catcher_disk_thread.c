@@ -1,7 +1,7 @@
 /*
- * hera_catcher_bda_disk_thread.c
+ * hera_catcher_disk_thread.c
  *
- * Writes correlated data to disk as hdf5 files.
+ * Writes correlated data to disk as metadata hdf5 file + binary data file.
  */
 
 #include <stdio.h>
@@ -65,12 +65,12 @@ static void close_hdf5_metadata_file(hid_t *file_id){
   hid_t status;
 
   // Close file
-  status = H5Fflush(file_id, H5F_SCOPE_GLOBAL);
+  status = H5Fflush(*file_id, H5F_SCOPE_GLOBAL);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to flush file");
     pthread_exit(NULL);
   }
-  status = H5Fclose(file_id);
+  status = H5Fclose(*file_id);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to close file");
     pthread_exit(NULL);
@@ -92,7 +92,7 @@ static void close_data_file(FILE *fp)
 }
 
 #define VERSION_BYTES 32
-static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *time_array,
+static void write_metadata(hid_t file_id, uint64_t t0, uint64_t mcnt, double *time_array,
                            int *ant_0_array, int *ant_1_array, double *integration_time,
                            int nblt)
 {
@@ -103,13 +103,13 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
 
   // create scalar datasets
   dspace_id = H5Screate(H5S_SCALAR);
-  if (dset_id < 0) {
+  if (dspace_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create scalar dataspace");
     pthread_exit(NULL);
   }
 
   // write t0
-  dset_id = H5Dcreate(&file_id, "t0", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "t0", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make t0 dataset");
     pthread_exit(NULL);
@@ -126,7 +126,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write mcnt
-  dset_id = H5Dcreate(&file_id, "mcnt", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "mcnt", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make mcnt dataset");
     pthread_exit(NULL);
@@ -143,7 +143,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write N_CHAN_PROCESSED
-  dset_id = H5Dcreate(&file_id, "nfreq", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "nfreq", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make nfreq dataset");
     pthread_exit(NULL);
@@ -161,7 +161,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write N_STOKES
-  dset_id = H5Dcreate(&file_id, "nstokes", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "nstokes", H5T_NATIVE_ULONG, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make nstokes dataset");
     pthread_exit(NULL);
@@ -181,7 +181,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   // version
   ver_tid = H5Tcopy(H5T_C_S1);
   H5Tset_size(ver_tid, VERSION_BYTES);
-  dset_id = H5Dcreate(&file_id, "corr_ver", ver_tid, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "corr_ver", ver_tid, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make corr_ver dataset");
     pthread_exit(NULL);
@@ -206,7 +206,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   dspace_id = H5Screate_simple(1, dspace_dims, NULL);
 
   // write ant_0_array
-  dset_id = H5Dcreate(&file_id, "ant_0_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "ant_0_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create ant_0_array dataset");
     pthread_exit(NULL);
@@ -218,12 +218,12 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
   status = H5Dclose(dset_id);
   if (status < 0) {
-    hashpipe_err(__FUNCTION__, "Failed to close ant_0_array dataset");
+    hashpipe_error(__FUNCTION__, "Failed to close ant_0_array dataset");
     pthread_exit(NULL);
   }
 
   // write ant_1_array
-  dset_id = H5Dcreate(&file_id, "ant_1_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "ant_1_array", H5T_NATIVE_INT, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create ant_1_array dataset");
     pthread_exit(NULL);
@@ -235,12 +235,12 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
   status = H5Dclose(dset_id);
   if (status < 0) {
-    hashpipe_err(__FUNCTION__, "Failed to close ant_1_array dataset");
+    hashpipe_error(__FUNCTION__, "Failed to close ant_1_array dataset");
     pthread_exit(NULL);
   }
 
   // write time_array
-  dset_id = H5Dcreate(&file_id, "time_array", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "time_array", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create time_array dataset");
     pthread_exit(NULL);
@@ -257,7 +257,7 @@ static void write_metadata(hid_t *file_id, uint64_t t0, uint64_t mcnt, double *t
   }
 
   // write integration_time
-  dset_id = H5Dcreate(&file_id, "integration_time", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  dset_id = H5Dcreate(file_id, "integration_time", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to create integration_time dataset");
     pthread_exit(NULL);
@@ -353,7 +353,7 @@ static void get_integration_time(redisContext *c, double *integration_time_buf, 
   line = strtok_r(int_bin_str, "\n", &saveptr);
   i = 0;
   while (line != NULL) {
-    sscanf(line, "%f", &inttime);
+    sscanf(line, "%lf", &inttime);
     line = strtok_r(NULL, "\n", &saveptr);
     integration_time_buf[i] = inttime;
     i+=1;
@@ -465,54 +465,6 @@ static void compute_sum_diff(int32_t *in, int32_t *out_sum, int32_t *out_diff, u
 return;
 }
 
-static void add_mc_obs(char *fname)
-{
-  char cmd[256];
-  int err;
-  fprintf(stdout, "Adding observation %s to M&C\n", fname);
-  // Launch (hard-coded) python script in the background and pass in filename
-  sprintf(cmd, "/home/hera/hera-venv/envs/hera/bin/mc_add_observation.py %s", fname);
-  if (fork() == 0) {
-    err = system(cmd);
-    if (err != 0) {
-      fprintf(stderr, "Error adding observation %s to M&C\n", fname);
-    } else {
-      // Add to rtp_launch_record table
-      sprintf(cmd, "/home/hera/hera-venv/envs/hera/bin/mc_rtp_launch_record.py %s", fname);
-      err = system(cmd);
-      if (err != 0) {
-	fprintf(stderr, "Error adding observation %s to RTP\n", fname);
-      }
-    }
-    exit(0);
-  }
-}
-
-static void add_mc_obs_pthread(char *fname)
-{
-  char cmd[256];
-  int err;
-
-  // explicitly run this in the background
-  pthread_detach(pthread_self());
-
-  fprintf(stdout, "Adding observation %s to M&C\n", fname);
-  // Launch (hard-coded) python script in the background and pass in filename
-  sprintf(cmd, "/home/hera/hera-venv/envs/hera/bin/mc_add_observation.py %s", fname);
-  err = system(cmd);
-  if (err != 0) {
-    fprintf(stderr, "Error adding observation %s to M&C\n", fname);
-  } else {
-    // Add to rtp_launch_record table
-    sprintf(cmd, "/home/hera/hera-venv/envs/hera/bin/mc_rtp_launch_record.py %s", fname);
-    err = system(cmd);
-    if (err != 0) {
-      fprintf(stderr, "Error adding observation %s to RTP\n", fname);
-    }
-  }
-  pthread_exit(NULL);
-}
-
 static int init(hashpipe_thread_args_t *args)
 {
     fprintf(stdout, "Initializing Catcher disk thread\n");
@@ -551,7 +503,6 @@ static void *run(hashpipe_thread_args_t * args)
     char sum_fname[128];
     char diff_fname[128];
     char data_directory[128];
-    char hdf5_mc_fname[128];
 
     // Variables for sync time and computed gps time / JD
     uint64_t sync_time_ms = 0;
@@ -609,19 +560,18 @@ static void *run(hashpipe_thread_args_t * args)
     int curblock_in=0;
     int curblock_out = 0;
     double file_start_t, file_stop_t, file_duration; // time from bcnt
-    int64_t file_obs_id, file_nblts=0;
+    int64_t file_nblts=0;
     int32_t curr_file_bcnt = -1;
     uint32_t bctr, strt_bcnt, stop_bcnt, break_bcnt;        // bcnt variable
-    int i,b;
+    int b;
     unsigned int nbls, block_offset;
     uint32_t file_offset;
     uint32_t offset_in, offset_out; // for autocorrs
     int auto_ants_filled = 0;
     uint16_t ant;
-    herr_t status;
-    pthread_t thread_id; // for calling hera_mc command
-    int rc;
 
+    // files
+    hid_t meta_fid;
     FILE *sum_file;
     #ifndef SKIP_DIFF
     FILE *diff_file;
@@ -736,6 +686,7 @@ static void *run(hashpipe_thread_args_t * args)
         elapsed_t_ns = 0.0;
 
         // Get time that F-engines were last sync'd
+	hashpipe_status_lock_safe(&st);
         hgetu8(st.buf, "SYNCTIME", &sync_time_ms);
 
         // Get the integration time reported by the correlator
@@ -857,9 +808,9 @@ static void *run(hashpipe_thread_args_t * args)
 
                 clock_gettime(CLOCK_MONOTONIC, &w_start);
 
-                write_baseline_index(&sum_file, N_BL_PER_WRITE, (uint64_t *)bl_buf_sum);
+                write_baseline_index(sum_file, N_BL_PER_WRITE, (uint64_t *)bl_buf_sum);
                 #ifndef SKIP_DIFF
-                write_baseline_index(&diff_file, N_BL_PER_WRITE, (uint64_t *)bl_buf_diff);
+                write_baseline_index(diff_file, N_BL_PER_WRITE, (uint64_t *)bl_buf_diff);
                 #endif
 
                 clock_gettime(CLOCK_MONOTONIC, &w_stop);
@@ -901,9 +852,9 @@ static void *run(hashpipe_thread_args_t * args)
                     file_offset = strt_bcnt - curr_file_bcnt;
 
                     clock_gettime(CLOCK_MONOTONIC, &w_start);
-                    write_baseline_index(&sum_file, nbls, (uint64_t *)bl_buf_sum);
+                    write_baseline_index(sum_file, nbls, (uint64_t *)bl_buf_sum);
                     #ifndef SKIP_DIFF
-                    write_baseline_index(&diff_file, nbls, (uint64_t *)bl_buf_diff);
+                    write_baseline_index(diff_file, nbls, (uint64_t *)bl_buf_diff);
                     #endif
 
                     clock_gettime(CLOCK_MONOTONIC, &w_stop);
@@ -927,14 +878,14 @@ static void *run(hashpipe_thread_args_t * args)
                  file_stop_t = gps_time;
                  file_duration = file_stop_t - file_start_t;
 
-                 write_metadata(&meta_fid, sync_time_ms, header.mcnt[bctr+nbls],
+                 write_metadata(meta_fid, sync_time_ms, header.mcnt[bctr+nbls],
                                 time_array_buf, ant_0_array, ant_1_array, integration_time_buf,
                                 file_nblts);
                  close_hdf5_metadata_file(&meta_fid);
-                 close_data_file(&sum_file);
+                 close_data_file(sum_file);
 
                  #ifndef SKIP_DIFF
-                 close_data_file(&diff_file);
+                 close_data_file(diff_file);
                  #endif
 
                  file_cnt += 1;
@@ -961,7 +912,6 @@ static void *run(hashpipe_thread_args_t * args)
 
              // Open new sum and difference files
              // Init all counters to zero
-
              file_nblts = 0;
              memset(ant_0_array,          0, bcnts_per_file * sizeof(uint16_t));
              memset(ant_1_array,          0, bcnts_per_file * sizeof(uint16_t));
@@ -974,7 +924,6 @@ static void *run(hashpipe_thread_args_t * args)
              gps_time = mcnt2time(header.mcnt[block_offset], sync_time_ms);
              julian_time = 2440587.5 + (gps_time / (double)(86400.0));
              file_start_t = gps_time;
-             file_obs_id = (int64_t)gps_time;
 
              // Make a new folder for output
              if (file_cnt == 0) {
@@ -988,8 +937,8 @@ static void *run(hashpipe_thread_args_t * args)
              sprintf(sum_fname, "%d/zen.%7.5lf.sum.dat", int_jd, julian_time);
              sprintf(hdf5_meta_fname, "%d/zen.%7.5lf.meta.hdf5", int_jd, julian_time);
              fprintf(stdout, "Opening new file %s\n", sum_fname);
-             meta_fid = create_hdf5_metadata_file(&hdf5_meta_fname);
-             sum_file = open_data_file(&sum_fname);
+             meta_fid = create_hdf5_metadata_file(hdf5_meta_fname);
+             sum_file = open_data_file(sum_fname);
              if (use_redis) {
                redisCommand(c, "RPUSH rtp:file_list %s", sum_fname);
              }
@@ -997,7 +946,7 @@ static void *run(hashpipe_thread_args_t * args)
              #ifndef SKIP_DIFF
                sprintf(diff_fname, "%d/zen.%7.5lf.diff.dat", int_jd, julian_time);
                fprintf(stdout, "Opening new file %s\n", diff_fname);
-               diff_file = open_data_file(&diff_fname);
+               diff_file = open_data_file(diff_fname);
                if (use_redis) {
                  redisCommand(c, "RPUSH rtp:file_list %s", diff_fname);
                }
@@ -1005,9 +954,8 @@ static void *run(hashpipe_thread_args_t * args)
 
              // Get the antenna positions and baseline orders
              // These are needed for populating the ant_[1|2]_array and uvw_array
-             //get_ant_pos(&sum_file, ant_pos);
-             get_corr_to_hera_map(&c, corr_to_hera_map);
-             get_integration_time(&c, integration_time_buf, acc_len);
+             get_corr_to_hera_map(c, corr_to_hera_map);
+             get_integration_time(c, integration_time_buf, acc_len);
 
              // Copy data to the right location
              nbls = stop_bcnt - break_bcnt + 1;
@@ -1016,16 +964,16 @@ static void *run(hashpipe_thread_args_t * args)
                 file_offset = break_bcnt - curr_file_bcnt;
 
                 for(b=0; b< nbls; b++){
-                  blt_idx[file_offset+b].i  = corr_to_hera_map[header.ant_pair_0[block_offset+b]];
-                  blt_idx[file_offset+b].j  = corr_to_hera_map[header.ant_pair_1[block_offset+b]];
-                  blt_idx[file_offset+b].jd = compute_jd_from_mcnt(header.mcnt[block_offset+b], sync_time_ms,
-                                                                   integration_time_buf[file_offset+b]);
+		  ant_0_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_0[block_offset+b]];
+		  ant_1_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_1[block_offset+b]];
+		  time_array_buf[file_offset+b] = compute_jd_from_mcnt(header.mcnt[block_offset+b], sync_time_ms,
+								       integration_time_buf[file_offset+b]);
                 }
 
                 clock_gettime(CLOCK_MONOTONIC, &w_start);
-                write_baseline_index(&sum_file, nbls, (uint64_t *)bl_buf_sum);
+                write_baseline_index(sum_file, nbls, (uint64_t *)bl_buf_sum);
                 #ifndef SKIP_DIFF
-                write_baseline_index(&diff_file, nbls, (uint64_t *)bl_buf_diff);
+                write_baseline_index(diff_file, nbls, (uint64_t *)bl_buf_diff);
                 #endif
                 clock_gettime(CLOCK_MONOTONIC, &w_stop);
 
