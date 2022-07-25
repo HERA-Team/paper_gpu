@@ -6,8 +6,7 @@ import argparse
 import subprocess
 
 python_source_cmd = ['source', '~/hera-venv/bin/activate', 'hera']
-template_cmd_bda = ['hera_make_hdf5_template_bda.py']
-template_cmd = ['hera_make_hdf5_template.py']
+redis_metadata_cmd = ["hera_init_catcher_data.py"]
 
 def run_on_hosts(hosts, cmd, user=None, wait=True):
     if isinstance(cmd, str):
@@ -27,10 +26,7 @@ parser = argparse.ArgumentParser(description='Trigger data collection on the HER
 
 parser.add_argument('host', type=str, help='Host on which to capture data')
 parser.add_argument('-r', dest='redishost', type=str, default='redishost', help='Host serving redis database')
-parser.add_argument('--nobda', dest='nobda', action='store_true', default=False,
-                    help='Use the baseline dependent averaging version')
 parser.add_argument('--tag', dest='tag', type=str, default='none', help='A descriptive tag to go into data files')
-parser.add_argument('-t', dest='hdf5template', type=str, default='/tmp/template.h5', help='Place to put HDF5 header template file')
 
 args = parser.parse_args()
 
@@ -46,12 +42,8 @@ nfiles = int(1000 * obslen / msperfile)
 if len(args.tag) > 127:
   raise ValueError("Tag argument must be <127 characters!")
 
-# Generate the meta-data template
-if not args.nobda:
-    run_on_hosts([args.host], python_source_cmd + [';'] + template_cmd_bda + ['-c', '-r', args.hdf5template], wait=True)
-else:
-   run_on_hosts([args.host], python_source_cmd + [';'] + template_cmd + ['-c', '-r', args.hdf5template], wait=True)
-
+# Populate redis with the necessary metadata
+run_on_hosts([args.host], python_source_cmd + [";"] + redis_metadata_cmd + ["--verbose"], wait=True)
 
 #Configure runtime parameters
 catcher_dict = {
@@ -62,7 +54,7 @@ catcher_dict = {
   'INTTIME'  : r['corr:acc_len'],
   'TAG'      : args.tag,
 }
-  
+
 pubchan = 'hashpipe://%s/%d/set' % (args.host, 0)
 for key, val in catcher_dict.items():
    r.publish(pubchan, '%s=%s' % (key, val))
