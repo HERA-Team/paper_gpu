@@ -151,6 +151,12 @@ def make_uvh5_file(filename, metadata_file, data_file):
         The name of the output file to write.
     metadata_file : str
         The name of the metadata file written by the correlator.
+    data_file : str
+        The name of the data file written by the correlator.
+
+    Returns
+    -------
+    None
     """
     # get cminfo from redis
     cminfo = redis_cm.read_cminfo_from_redis(return_as="dict")
@@ -173,16 +179,45 @@ def make_uvh5_file(filename, metadata_file, data_file):
 
     # make sure metadata are the right size
     nblts = ant_0_array.shape[0]
-    actual_shapes = np.array([ant_1_array.shape[0], time_array.shape[0], integration_time.shape[0]])
+    actual_shapes = np.array(
+        [ant_1_array.shape[0], time_array.shape[0], integration_time.shape[0]]
+    )
     if np.any(actual_shapes != nblts):
         raise ValueError(
             f"one or more bad data shapes; expected {nblts}, got {actual_shapes}"
         )
 
     # compute other necessary metadata
-    baseline_array = uvutils.antnums_to_baseline(ant_0_array, ant_1_array, nants_telescope)
+    baseline_array = uvutils.antnums_to_baseline(
+        ant_0_array, ant_1_array, nants_telescope
+    )
     nbls = len(baseline_array)
     ant_nums = np.asarray([int(name[2:]) for name in ant_names])
+    antenna_diameters = 14.0 * np.ones((len(ant_names),), dtype=np.float64)
+    cofa_lat_rad = cminfo["cofa_lat"] * np.pi / 180.0
+    cofa_lon_rad = cminfo["cofa_lon"] * np.pi / 180.0
+    # the uvw calculation will have to change when we turn fringe stopping on
+    uvw_array = uvutils.calc_uvw(
+        use_ant_pos=True,
+        antenna_positions=antpos_xyz,
+        antenna_numbers=ant_nums,
+        ant_1_array=ant_0_array,
+        ant_2_array=ant_1_array,
+        telescope_lat=cofa_lat_rad,
+        telescope_lon=cofa_lon_rad,
+        to_enu=True,
+    )
+
+    # build frequency information
+    bandwidth = 250e6
+    nchans = int(2048 // 4 * 3)  # number of channels we're writing
+    nchans_f = 8192  # total number of channels in SNAP
+    nchan_sum = 4  # averaging 4 channels together; may change in future
+    start_chan = 1536
+    channel_width = bandwidth / nchans_f * nchan_sum
+    freqs = np.linspace(0, bandwidth, nchans_f + 1)
+    freqs = freqs[start_chan : start_chan + (nchans_f // 4 * 3)]  # downselect
+    freqs = freqs.reshape(nchans, nchan_sum).sum(axis=1) / nchan_sum
 
     # define the size of the data array
     data_shape = (nblts, nfreq, nstokes)
@@ -217,12 +252,12 @@ def make_uvh5_file(filename, metadata_file, data_file):
         header["Nspws"] = 1  # might change when doing polarization transpose
         header["Ntimes"] = len(np.unique(time_array))
         header["antenna_numbers"] = ant_nums
-        header["uvw_array"] = # TODO
+        header["uvw_array"] = uvw_array
         header["vis_units"] = np.bytes_("uncalib")
-        header["channel_width"] = # TODO
+        header["channel_width"] = channel_width
         header["time_array"] = time_array
-        header["freq_array"] = # TODO
-        header["integration_time"] = # TODO
+        header["freq_array"] = freqs
+        header["integration_time"] = integration_time
         header["polarization_array"] = np.asarray([-5, -6, -7, -8])
         header["spw_array"] = np.asarray([0])
         header["ant_1_array"] = ant_0_array
@@ -231,7 +266,10 @@ def make_uvh5_file(filename, metadata_file, data_file):
         header["flex_spw"] = False  # might change with polarization transpose
         header["multi_phase_center"] = False  # will change with fringe stopping
         header["antenna_names"] = np.asarray(ant_names, dtype="bytes")
+
+        # optional parameters
         header["x_orientation"] = np.bytes_("north")
+        header["antenna_diameters"] = antenna_diameters
 
         # extra keywords
         eq_dgrp["t0"] = t0
