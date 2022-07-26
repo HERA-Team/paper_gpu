@@ -29,8 +29,8 @@ function init() {
     echo taskset $mask \
     hashpipe -p paper_gpu -I $instance \
       -o BINDHOST=$bindhost \
-      -c $netcpu hera_catcher_net_thread_bda \
-      -m $outmask hera_catcher_disk_thread_bda \
+      -c $netcpu hera_catcher_net_thread \
+      -m $outmask hera_catcher_disk_thread \
       -c $autocpu hera_catcher_autocorr_thread
 
     if [ $USE_REDIS -eq 1 ] 
@@ -39,8 +39,8 @@ function init() {
       { taskset $mask \
       hashpipe -p paper_gpu -I $instance \
         -o BINDHOST=$bindhost \
-        -c $netcpu hera_catcher_net_thread_bda   \
-        -m $outmask hera_catcher_disk_thread_bda  \
+        -c $netcpu hera_catcher_net_thread   \
+        -m $outmask hera_catcher_disk_thread  \
         -c $autocpu hera_catcher_autocorr_thread \
       < /dev/null 2>&3 1>~/catcher.out.$instance; } \
       3>&1 1>&2 | tee ~/catcher.err.$instance | \
@@ -50,8 +50,8 @@ function init() {
       taskset $mask \
       hashpipe -p paper_gpu -I $instance \
         -o BINDHOST=$bindhost \
-        -c $netcpu hera_catcher_net_thread_bda \
-        -m $outmask hera_catcher_disk_thread_bda \
+        -c $netcpu hera_catcher_net_thread \
+        -m $outmask hera_catcher_disk_thread \
         -c $autocpu hera_catcher_autocorr_thread \
          < /dev/null \
         1> ~/catcher.out.$instance \
