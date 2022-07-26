@@ -47,7 +47,6 @@ run_on_hosts([args.host], python_source_cmd + [";"] + redis_metadata_cmd + ["--v
 
 #Configure runtime parameters
 catcher_dict = {
-  'HDF5TPLT' : args.hdf5template,
   'MSPERFIL' : msperfile,
   'NFILES'   : nfiles,
   'SYNCTIME' : r['corr:feng_sync_time'],
