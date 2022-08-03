@@ -11,3 +11,4 @@ except DistributionNotFound:
     pass
 
 from . import bda
+from . import file_conversion

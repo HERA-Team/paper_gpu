@@ -23,6 +23,21 @@ setup(
     package_dir={"": "src"},
     scripts=glob.glob("scripts/*.py") + glob.glob("scripts/*.sh"),
     include_package_data=True,
+    install_requires=[
+        "cartopy",
+        "h5py",
+        "hera-mc",
+        "hera-corr-cm",
+        "numpy",
+        "pyuvdata",
+        "pyyaml",
+        "redis",
+    ],
+    extras_require={
+        "bishuffle": [
+            "hdf5plugin",
+        ],
+    },
 )
 
 ver = get_version(root="..", local_scheme="dirty-tag")
