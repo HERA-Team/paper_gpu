@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import time
 import argparse
 import h5py
 import numpy as np
@@ -8,7 +9,7 @@ import cartopy.crs as ccrs
 import pyuvdata.utils as uvutils
 from hera_mc import geo_sysdef
 from hera_corr_cm import redis_cm
-import bitshuffle.h5
+import hdf5plugin
 
 # define correlator dtype
 hera_corr_dtype = np.dtype([("r", "<i4"), ("i", "<i4")])
@@ -197,6 +198,9 @@ def make_uvh5_file(filename, metadata_file, data_file):
     antenna_diameters = 14.0 * np.ones((len(ant_names),), dtype=np.float64)
     cofa_lat_rad = cminfo["cofa_lat"] * np.pi / 180.0
     cofa_lon_rad = cminfo["cofa_lon"] * np.pi / 180.0
+    altitude = cminfo["cofa_alt"]
+    cofa_xyz = uvutils.XYZ_from_LatLonAlt(cofa_lat_rad, cofa_lon_rad, altitude)
+    antpos_xyz -= cofa_xyz
     # the uvw calculation will have to change when we turn fringe stopping on
     uvw_array = uvutils.calc_uvw(
         use_ant_pos=True,
@@ -219,6 +223,7 @@ def make_uvh5_file(filename, metadata_file, data_file):
     freqs = np.linspace(0, bandwidth, nchans_f + 1)
     freqs = freqs[start_chan : start_chan + (nchans_f // 4 * 3)]  # downselect
     freqs = freqs.reshape(nchans, nchan_sum).sum(axis=1) / nchan_sum
+    channel_width = channel_width * np.ones_like(freqs)  # need an array
 
     # define the size of the data array
     data_shape = (nblts, nfreq, nstokes)
@@ -235,42 +240,45 @@ def make_uvh5_file(filename, metadata_file, data_file):
 
         # write header info
         # telescope + phasing info
-        header["latitude"] = cminfo["cofa_lat"]
-        header["longitude"] = cminfo["cofa_lon"]
-        header["altitude"] = cminfo["cofa_alt"]
-        header["telescope_name"] = np.bytes_("HERA")
-        header["instrument"] = np.bytes_("HERA")
-        header["object_name"] = np.bytes_("zenith")
-        header["phase_type"] = np.bytes_("unphased")
+        header_dgrp["latitude"] = cminfo["cofa_lat"]
+        header_dgrp["longitude"] = cminfo["cofa_lon"]
+        header_dgrp["altitude"] = cminfo["cofa_alt"]
+        header_dgrp["telescope_name"] = np.bytes_("HERA")
+        header_dgrp["instrument"] = np.bytes_("HERA")
+        header_dgrp["object_name"] = np.bytes_("zenith")
+        header_dgrp["phase_type"] = np.bytes_("unphased")
 
         # required UVParameters
-        header["Nants_data"] = len(np.unique(ant_0_array))
-        header["Nants_telescope"] = len(ant_names)
-        header["Nbls"] = nbls
-        header["Nblts"] = nblts
-        header["Nfreqs"] = nfreq
-        header["Npols"] = nstokes
-        header["Nspws"] = 1  # might change when doing polarization transpose
-        header["Ntimes"] = len(np.unique(time_array))
-        header["antenna_numbers"] = ant_nums
-        header["uvw_array"] = uvw_array
-        header["vis_units"] = np.bytes_("uncalib")
-        header["channel_width"] = channel_width
-        header["time_array"] = time_array
-        header["freq_array"] = freqs
-        header["integration_time"] = integration_time
-        header["polarization_array"] = np.asarray([-5, -6, -7, -8])
-        header["spw_array"] = np.asarray([0])
-        header["ant_1_array"] = ant_0_array
-        header["ant_2_array"] = ant_1_array
-        header["antenna_positions"] = antpos_xyz
-        header["flex_spw"] = False  # might change with polarization transpose
-        header["multi_phase_center"] = False  # will change with fringe stopping
-        header["antenna_names"] = np.asarray(ant_names, dtype="bytes")
+        header_dgrp["Nants_data"] = len(np.unique(ant_0_array))
+        header_dgrp["Nants_telescope"] = len(ant_names)
+        header_dgrp["Nbls"] = nbls
+        header_dgrp["Nblts"] = nblts
+        header_dgrp["Nfreqs"] = nfreq
+        header_dgrp["Npols"] = nstokes
+        header_dgrp["Nspws"] = 1  # might change when doing polarization transpose
+        header_dgrp["Ntimes"] = len(np.unique(time_array))
+        header_dgrp["antenna_numbers"] = ant_nums
+        header_dgrp["uvw_array"] = uvw_array
+        header_dgrp["vis_units"] = np.bytes_("uncalib")
+        header_dgrp["channel_width"] = channel_width
+        header_dgrp["time_array"] = time_array
+        header_dgrp["freq_array"] = freqs
+        header_dgrp["integration_time"] = integration_time
+        header_dgrp["polarization_array"] = np.asarray([-5, -6, -7, -8])
+        header_dgrp["spw_array"] = np.asarray([0])
+        header_dgrp["ant_1_array"] = ant_0_array
+        header_dgrp["ant_2_array"] = ant_1_array
+        header_dgrp["antenna_positions"] = antpos_xyz
+        header_dgrp["flex_spw"] = False  # might change with polarization transpose
+        header_dgrp["multi_phase_center"] = False  # will change with fringe stopping
+        header_dgrp["antenna_names"] = np.asarray(ant_names, dtype="bytes")
+        header_dgrp["history"] = np.bytes_(
+            "Written by the HERA Correlator on " + time.ctime() + "."
+        )
 
         # optional parameters
-        header["x_orientation"] = np.bytes_("north")
-        header["antenna_diameters"] = antenna_diameters
+        header_dgrp["x_orientation"] = np.bytes_("north")
+        header_dgrp["antenna_diameters"] = antenna_diameters
 
         # extra keywords
         eq_dgrp["t0"] = t0
@@ -279,12 +287,15 @@ def make_uvh5_file(filename, metadata_file, data_file):
 
         # write data
         data_chunks = (128, Nfreq, 1)  # assuming Nfreq = 1536, chunks are ~1 MB in size
+        compression_filter = 32008  # bitshuffle filter number
+        block_size = 0  # let bitshuffle decide
+        compression_opts = (block_size, 2)  # use LZ4 compression after bitshuffle
         visdata_dset = data_dgrp.create_dataset(
             "visdata",
             chunks=data_chunks,
             data=data,
-            compression=bitshuffle.h5.H5FILTER,
-            compression_opts=(0, bitshuffle.h5.H5_COMPRESS_LZ4),
+            compression=compression_filter,
+            compression_opts=compression_opts,
             dtype=hera_corr_dtype,
         )
 
@@ -323,4 +334,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    make_uvh5_file(args.output_file, args.input_file, args.meta_file)
+    make_uvh5_file(args.output_file, args.meta_file, args.input_file)
