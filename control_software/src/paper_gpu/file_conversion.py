@@ -41,11 +41,12 @@ def read_header_data(filename):
         corresponding to last count of data; unsigned integer), nfreq (number of
         frequency channels in data; unsigned integer), nstokes (number of
         stokes/polarizations; unsigned integer), corr_ver (correlator git
-        version; string), ant_0_array (list of first antennas in data; 1-d array
-        of ints of length nblts), ant_1_array (list of second antennas in data;
-        1-d array of ints of length nblts), time_array (JD of observation; 1-d
-        array of floats of length nblts), integration_time (seconds of
-        observation; 1-d array of floats of length nblts).
+        version; string), tag (observation tag; string), ant_0_array (list of
+        first antennas in data; 1-d array of ints of length nblts), ant_1_array
+        (list of second antennas in data; 1-d array of ints of length nblts),
+        time_array (JD of observation; 1-d array of floats of length nblts),
+        integration_time (seconds of observation; 1-d array of floats of length
+        nblts).
     """
     # pull data from HDF5 metadata file
     with h5py.File(filename, "r") as h5f:
@@ -54,6 +55,7 @@ def read_header_data(filename):
         nfreq = h5f["nfreq"][()]
         nstokes = h5f["nstokes"][()]
         corr_ver = h5f["corr_ver"][()].decode("utf-8")
+        tag = h5f["tag"][()].decode("utf-8")
         ant_0_array = h5f["ant_0_array"][()]
         ant_1_array = h5f["ant_1_array"][()]
         time_array = h5f["time_array"][()]
@@ -65,6 +67,7 @@ def read_header_data(filename):
         nfreq,
         nstokes,
         corr_ver,
+        tag,
         ant_0_array,
         ant_1_array,
         time_array,
@@ -187,10 +190,11 @@ def make_uvh5_file(filename, metadata_file, data_file):
     nfreq = metadata[2]
     nstokes = metadata[3]
     corr_ver = metadata[4]
-    ant_0_array = metadata[5]
-    ant_1_array = metadata[6]
-    time_array = metadata[7]
-    integration_time = metadata[8]
+    tag = metadata[5]
+    ant_0_array = metadata[6]
+    ant_1_array = metadata[7]
+    time_array = metadata[8]
+    integration_time = metadata[9]
 
     # make sure metadata are the right size
     nblts = ant_0_array.shape[0]
@@ -297,6 +301,7 @@ def make_uvh5_file(filename, metadata_file, data_file):
         eq_dgrp["t0"] = t0
         eq_dgrp["mcnt"] = mcnt
         eq_dgrp["corr_ver"] = np.bytes_(corr_ver)
+        eq_dgrp["tag"] = np.bytes_(tag)
 
         # write data
         data_chunks = (128, nfreq, 1)  # assuming Nfreq = 1536, chunks are ~1 MB in size

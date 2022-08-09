@@ -39,6 +39,9 @@
 #define N_CHAN_RECEIVED (N_CHAN_TOTAL)
 #define N_BL_PER_WRITE (32)
 
+#define VERSION_BYTES 32
+#define TAG_BYTES 128
+
 // Dummy value to fill all bytes of corr_to_hera_map to indicate that it does
 // not yet contain valid data.  For 32 bit ints, this will end up as a
 // 0xaaaaaaaa value, which is negative for signed ints.
@@ -91,12 +94,11 @@ static void close_data_file(FILE *fp)
   fclose(fp);
 }
 
-#define VERSION_BYTES 32
 static void write_metadata(hid_t file_id, uint64_t t0, uint64_t mcnt, double *time_array,
                            int *ant_0_array, int *ant_1_array, double *integration_time,
-                           int nblt)
+                           int nblt, char* tag)
 {
-  hid_t dset_id, dspace_id, status, ver_tid;
+  hid_t dset_id, dspace_id, status, str_tid;
   uint64_t data;
   hsize_t dspace_dims[] = {nblt};
   char ver[VERSION_BYTES] = GIT_VERSION; // defined at compile time
@@ -179,14 +181,14 @@ static void write_metadata(hid_t file_id, uint64_t t0, uint64_t mcnt, double *ti
   }
 
   // version
-  ver_tid = H5Tcopy(H5T_C_S1);
-  H5Tset_size(ver_tid, VERSION_BYTES);
-  dset_id = H5Dcreate(file_id, "corr_ver", ver_tid, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  str_tid = H5Tcopy(H5T_C_S1);
+  H5Tset_size(str_tid, VERSION_BYTES);
+  dset_id = H5Dcreate(file_id, "corr_ver", str_tid, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   if (dset_id < 0) {
     hashpipe_error(__FUNCTION__, "Failed to make corr_ver dataset");
     pthread_exit(NULL);
   }
-  status = H5Dwrite(dset_id, ver_tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, ver);
+  status = H5Dwrite(dset_id, str_tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, ver);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to write corr_ver");
     pthread_exit(NULL);
@@ -194,6 +196,25 @@ static void write_metadata(hid_t file_id, uint64_t t0, uint64_t mcnt, double *ti
   status = H5Dclose(dset_id);
   if (status < 0) {
     hashpipe_error(__FUNCTION__, "Failed to close corr_ver");
+    pthread_exit(NULL);
+  }
+
+  // tag
+  str_tid = H5Tcopy(H5T_C_S1);
+  H5Tset_size(str_tid, TAG_BYTES);
+  dset_id = H5Dcreate(file_id, "tag", str_tid, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+  if (dset_id < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to make tag dataset");
+    pthread_exit(NULL);
+  }
+  status = H5Dwrite(dset_id, str_tid, H5S_ALL, H5S_ALL, H5P_DEFAULT, tag);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to write tag");
+    pthread_exit(NULL);
+  }
+  status = H5Dclose(dset_id);
+  if (status < 0) {
+    hashpipe_error(__FUNCTION__, "Failed to close tag");
     pthread_exit(NULL);
   }
   status = H5Sclose(dspace_id);
@@ -515,7 +536,7 @@ static void *run(hashpipe_thread_args_t * args)
     uint32_t nfiles = 1;
     uint32_t file_cnt = 0;
     uint32_t trigger = 0;
-    char tag[128];
+    char tag[TAG_BYTES];
     uint64_t baseline_dist[N_BDABUF_BINS];
     uint64_t Nants = 0;
     int corr_to_hera_map[N_ANTS];
@@ -698,7 +719,7 @@ static void *run(hashpipe_thread_args_t * args)
         hputu4(st.buf, "NDONEFIL", file_cnt);
 
         // Data tag
-        hgets(st.buf, "TAG", 128, tag);
+        hgets(st.buf, "TAG", TAG_BYTES, tag);
 
         // Wait for the trigger to write files
         hgetu4(st.buf, "TRIGGER", &trigger);
@@ -880,7 +901,7 @@ static void *run(hashpipe_thread_args_t * args)
 
                  write_metadata(meta_fid, sync_time_ms, header.mcnt[bctr+nbls],
                                 time_array_buf, ant_0_array, ant_1_array, integration_time_buf,
-                                file_nblts);
+                                file_nblts, tag);
                  close_hdf5_metadata_file(&meta_fid);
                  close_data_file(sum_file);
 
