@@ -27,7 +27,7 @@ setup(
         "cartopy",
         "h5py",
         "hera-mc",
-        "hera-corr-cm",
+        "hera-corr",
         "numpy",
         "pyuvdata",
         "pyyaml",

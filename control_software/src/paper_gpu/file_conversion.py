@@ -95,9 +95,9 @@ def read_data_file(filename, data_shape):
         Raised if the data read in cannot be reshaped into the specified shape.
     """
     # read raw binary data
-    data = np.fromfile(filename, dtype=hera_corr_dtype)
+    data = np.fromfile(filename, dtype=_hera_corr_dtype)
     try:
-        data.reshape(data_shape)
+        data = data.reshape(data_shape)
     except ValueError:
         raise ValueError(
             f"data cannot be reshaped; data read is {data.size} elements, "
@@ -299,7 +299,7 @@ def make_uvh5_file(filename, metadata_file, data_file):
         eq_dgrp["corr_ver"] = np.bytes_(corr_ver)
 
         # write data
-        data_chunks = (128, Nfreq, 1)  # assuming Nfreq = 1536, chunks are ~1 MB in size
+        data_chunks = (128, nfreq, 1)  # assuming Nfreq = 1536, chunks are ~1 MB in size
         compression_filter = 32008  # bitshuffle filter number
         block_size = 0  # let bitshuffle decide
         compression_opts = (block_size, 2)  # use LZ4 compression after bitshuffle
@@ -311,7 +311,7 @@ def make_uvh5_file(filename, metadata_file, data_file):
                 data=data,
                 compression=compression_filter,
                 compression_opts=compression_opts,
-                dtype=hera_corr_dtype,
+                dtype=_hera_corr_dtype,
             )
         else:
             warnings.warn(no_bitshuffle_message)
@@ -319,7 +319,7 @@ def make_uvh5_file(filename, metadata_file, data_file):
                 "visdata",
                 chunks=data_chunks,
                 data=data,
-                dtype=hera_corr_dtype,
+                dtype=_hera_corr_dtype,
             )
 
         # also write flags and nsamples
