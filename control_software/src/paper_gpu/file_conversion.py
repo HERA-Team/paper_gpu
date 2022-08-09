@@ -263,7 +263,7 @@ def make_uvh5_file(filename, metadata_file, data_file):
         header_dgrp["telescope_name"] = np.bytes_("HERA")
         header_dgrp["instrument"] = np.bytes_("HERA")
         header_dgrp["object_name"] = np.bytes_("zenith")
-        header_dgrp["phase_type"] = np.bytes_("unphased")
+        header_dgrp["phase_type"] = np.bytes_("drift")
 
         # required UVParameters
         header_dgrp["Nants_data"] = len(np.unique(ant_0_array))
