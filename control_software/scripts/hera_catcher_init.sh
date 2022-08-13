@@ -18,10 +18,10 @@ function init() {
   instance=0
   mask=0x003f
   bindhost=eth4
-  netcpu=6
+  netcpu=3
   outcpu=8
   autocpu=5
-  outmask=0x300
+  outmask=0x06
 
   if [ $USE_BDA -eq 1 ]
   then
@@ -33,7 +33,7 @@ function init() {
       -m $outmask hera_catcher_disk_thread \
       -c $autocpu hera_catcher_autocorr_thread
 
-    if [ $USE_REDIS -eq 1 ] 
+    if [ $USE_REDIS -eq 1 ]
     then
       echo "Using redis logger"
       { taskset $mask \
