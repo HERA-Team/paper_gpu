@@ -245,7 +245,7 @@ typedef struct paper_gpu_input_databuf {
  * OUTPUT BUFFER STRUCTURES
  */
 
-#define N_OUTPUT_BLOCKS 4
+#define N_OUTPUT_BLOCKS 2
 
 typedef struct paper_output_header {
   uint64_t mcnt;
@@ -275,7 +275,7 @@ typedef struct paper_output_databuf {
 #define N_BASELINES               (N_ANTS * (N_ANTS + 1)/2)
 #define N_COMPLEX_PER_BASELINE    (N_STOKES * N_CHAN_PER_X)
 
-#define N_BDABUF_BLOCKS 4
+#define N_BDABUF_BLOCKS 2
 #define N_BDABUF_BINS   4
 #define N_MAX_INTTIME   8  // The longest baselines are collected for 8 time samples
 
