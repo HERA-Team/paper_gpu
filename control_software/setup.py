@@ -3,7 +3,6 @@
 # Licensed under the 2-Clause BSD License
 
 from setuptools import setup, find_namespace_packages
-from setuptools_scm import get_version
 import glob
 import io
 
@@ -23,6 +22,8 @@ setup(
     package_dir={"": "src"},
     scripts=glob.glob("scripts/*.py") + glob.glob("scripts/*.sh"),
     include_package_data=True,
+    use_scm_version={"root": ".."},
+    setup_requires=["setuptools_scm"],
     install_requires=[
         "cartopy",
         "h5py",
@@ -39,12 +40,3 @@ setup(
         ],
     },
 )
-
-ver = get_version(root="..", local_scheme="dirty-tag")
-if ver.endswith("dirty"):
-    print("********************************************")
-    print("* You are installing from a dirty git repo *")
-    print("*      One day you will regret this.       *")
-    print("*                                          *")
-    print("*  Consider cleaning up and reinstalling.  *")
-    print("********************************************")
