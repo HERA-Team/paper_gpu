@@ -16,12 +16,11 @@ myip=$(getip $(hostname))
 
 function init() {
   instance=0
-  mask=0x003f
+  mask=0x00fc0
   bindhost=eth4
-  netcpu=3
-  outcpu=8
-  autocpu=5
-  outmask=0x06
+  netcpu=9
+  autocpu=11
+  outmask=0x180
 
   if [ $USE_BDA -eq 1 ]
   then
