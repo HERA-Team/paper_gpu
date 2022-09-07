@@ -570,9 +570,7 @@ static void *run(hashpipe_thread_args_t * args)
     // Indicate via redis that we've started but not taking data
     redisCommand(c, "HMSET corr:is_taking_data state False time %d", (int)time(NULL));
     redisCommand(c, "EXPIRE corr:is_taking_data 60");
-
-    // Reinitialize the list of files taken this session
-    redisCommand(c, "DEL rtp:file_list");
+    redisCommand(c, "HMSET corr:current_file filename NONE time %d", (int)time(NULL));
 
     /* Loop(s) */
     int32_t *db_in32;
@@ -961,16 +959,13 @@ static void *run(hashpipe_thread_args_t * args)
              meta_fid = create_hdf5_metadata_file(hdf5_meta_fname);
              sum_file = open_data_file(sum_fname);
              if (use_redis) {
-               redisCommand(c, "RPUSH rtp:file_list %s", sum_fname);
+               redisCommand(c, "HMSET corr:current_file filename %s time %d", sum_fname, (int)time(NULL));
              }
 
              #ifndef SKIP_DIFF
                sprintf(diff_fname, "%d/zen.%7.5lf.diff.dat", int_jd, julian_time);
                fprintf(stdout, "Opening new file %s\n", diff_fname);
                diff_file = open_data_file(diff_fname);
-               if (use_redis) {
-                 redisCommand(c, "RPUSH rtp:file_list %s", diff_fname);
-               }
              #endif
 
              // Get the antenna positions and baseline orders
