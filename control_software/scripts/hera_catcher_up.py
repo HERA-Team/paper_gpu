@@ -29,8 +29,6 @@ parser = argparse.ArgumentParser(description='Start the HERA Catcher Machine',
 
 parser.add_argument('host', type=str, help='Host to intialize')
 parser.add_argument('-r', dest='redishost', type=str, default='redishost', help='Host serving redis database')
-parser.add_argument('-t', dest='hdf5template', type=str, default='/tmp/template.h5', 
-                    help='Place to put HDF5 header template file')
 parser.add_argument('--nobda', dest='nobda', action='store_true', default=False,
                     help='Use the baseline dependent averaging version')
 parser.add_argument('--runtweak', dest='runtweak', action='store_true', default=False,
@@ -70,20 +68,16 @@ run_on_hosts([args.host], ['taskset', cpu_mask, 'hashpipe_redis_gateway.rb', '-g
 time.sleep(10)
 
 # Generate the meta-data template
-if not args.nobda:
-   run_on_hosts([args.host], python_source_cmd + ['hera_make_hdf5_template_bda.py'] + ['-c', '-r', args.hdf5template], wait=True)
-else:
-   run_on_hosts([args.host], python_source_cmd + ['hera_make_hdf5_template.py'] + ['-c', '-r', args.hdf5template], wait=True)
+run_on_hosts([args.host], python_source_cmd + ["hera_init_catcher_data.py"] + ["--verbose"], wait=True)
 
 #Configure runtime parameters
 catcher_dict = {
-  'HDF5TPLT' : args.hdf5template,
   'NFILES'   : 0,
   'SYNCTIME' : r['corr:feng_sync_time'],
   'INTTIME'  : r['corr:acc_len'],
   'TRIGGER'  : 0,
 }
-  
+
 # Reset various statistics counters
 
 pubchan = 'hashpipe://%s/%d/set' % (args.host, 0)

@@ -16,12 +16,11 @@ myip=$(getip $(hostname))
 
 function init() {
   instance=0
-  mask=0x003f
+  mask=0x00fc0
   bindhost=eth4
-  netcpu=6
-  outcpu=8
-  autocpu=5
-  outmask=0x300
+  netcpu=9
+  autocpu=11
+  outmask=0x180
 
   if [ $USE_BDA -eq 1 ]
   then
@@ -29,18 +28,18 @@ function init() {
     echo taskset $mask \
     hashpipe -p paper_gpu -I $instance \
       -o BINDHOST=$bindhost \
-      -c $netcpu hera_catcher_net_thread_bda \
-      -m $outmask hera_catcher_disk_thread_bda \
+      -c $netcpu hera_catcher_net_thread \
+      -m $outmask hera_catcher_disk_thread \
       -c $autocpu hera_catcher_autocorr_thread
 
-    if [ $USE_REDIS -eq 1 ] 
+    if [ $USE_REDIS -eq 1 ]
     then
       echo "Using redis logger"
       { taskset $mask \
       hashpipe -p paper_gpu -I $instance \
         -o BINDHOST=$bindhost \
-        -c $netcpu hera_catcher_net_thread_bda   \
-        -m $outmask hera_catcher_disk_thread_bda  \
+        -c $netcpu hera_catcher_net_thread   \
+        -m $outmask hera_catcher_disk_thread  \
         -c $autocpu hera_catcher_autocorr_thread \
       < /dev/null 2>&3 1>~/catcher.out.$instance; } \
       3>&1 1>&2 | tee ~/catcher.err.$instance | \
@@ -50,8 +49,8 @@ function init() {
       taskset $mask \
       hashpipe -p paper_gpu -I $instance \
         -o BINDHOST=$bindhost \
-        -c $netcpu hera_catcher_net_thread_bda \
-        -m $outmask hera_catcher_disk_thread_bda \
+        -c $netcpu hera_catcher_net_thread \
+        -m $outmask hera_catcher_disk_thread \
         -c $autocpu hera_catcher_autocorr_thread \
          < /dev/null \
         1> ~/catcher.out.$instance \
