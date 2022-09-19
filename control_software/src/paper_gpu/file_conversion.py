@@ -4,6 +4,7 @@
 
 import time
 import h5py
+import redis
 import numpy as np
 import cartopy.crs as ccrs
 import pyuvdata.utils as uvutils
@@ -24,6 +25,11 @@ except ImportError:
 # define correlator type
 _hera_corr_dtype = np.dtype([("r", "<i4"), ("i", "<i4")])
 
+# define Easting/Northing magic numbers
+# HERA is in Zone 34J; corresponds to latitude 10000000 in northings
+UTM_TILE = 34
+LAT_CORR = 10000000
+
 
 def read_header_data(filename):
     """
@@ -36,8 +42,8 @@ def read_header_data(filename):
 
     Returns
     -------
-    tuple
-        A tuple containing: t0 (starting time; unsigned integer), mcnt (mcnt
+    dict
+        A dict containing: t0 (starting time; unsigned integer), mcnt (mcnt
         corresponding to last count of data; unsigned integer), nfreq (number of
         frequency channels in data; unsigned integer), nstokes (number of
         stokes/polarizations; unsigned integer), corr_ver (correlator git
@@ -46,33 +52,23 @@ def read_header_data(filename):
         (list of second antennas in data; 1-d array of ints of length nblts),
         time_array (JD of observation; 1-d array of floats of length nblts),
         integration_time (seconds of observation; 1-d array of floats of length
-        nblts).
+        nblts). Dict keys are the names of these quantities.
     """
     # pull data from HDF5 metadata file
+    meta_dict = {}
     with h5py.File(filename, "r") as h5f:
-        t0 = h5f["t0"][()]
-        mcnt = h5f["mcnt"][()]
-        nfreq = h5f["nfreq"][()]
-        nstokes = h5f["nstokes"][()]
-        corr_ver = h5f["corr_ver"][()].decode("utf-8")
-        tag = h5f["tag"][()].decode("utf-8")
-        ant_0_array = h5f["ant_0_array"][()]
-        ant_1_array = h5f["ant_1_array"][()]
-        time_array = h5f["time_array"][()]
-        integration_time = h5f["integration_time"][()]
+        meta_dict["t0"] = h5f["t0"][()]
+        meta_dict["mcnt"] = h5f["mcnt"][()]
+        meta_dict["nfreq"] = h5f["nfreq"][()]
+        meta_dict["nstokes"] = h5f["nstokes"][()]
+        meta_dict["corr_ver"] = h5f["corr_ver"][()].decode("utf-8")
+        meta_dict["tag"] = h5f["tag"][()].decode("utf-8")
+        meta_dict["ant_0_array"] = h5f["ant_0_array"][()]
+        meta_dict["ant_1_array"] = h5f["ant_1_array"][()]
+        meta_dict["time_array"] = h5f["time_array"][()]
+        meta_dict["integration_time"] = h5f["integration_time"][()]
 
-    return (
-        t0,
-        mcnt,
-        nfreq,
-        nstokes,
-        corr_ver,
-        tag,
-        ant_0_array,
-        ant_1_array,
-        time_array,
-        integration_time,
-    )
+    return meta_dict
 
 
 def read_data_file(filename, data_shape):
@@ -130,10 +126,8 @@ def get_antpos_info():
     # read antenna positions from M&C
     ants = geo_sysdef.read_antennas()
     # convert from eastings/northings to ENU
-    # HERA is in Zone 34J; corresponds to latitude 10000000 in northings
     latlon_p = ccrs.Geodetic()
-    utm_p = ccrs.UTM(34)
-    lat_corr = 10000000
+    utm_p = ccrs.UTM(UTM_TILE)
     antpos_xyz = np.empty((350, 3), dtype=np.float64)
     ant_names = np.empty((350,), dtype="S5")
     for ant, pos in ants.items():
@@ -146,7 +140,7 @@ def get_antpos_info():
         northing = pos["N"]
         elevation = pos["elevation"]
         # transform coordinates to ECEF
-        lon, lat = latlon_p.transform_point(easting, northing - lat_corr, utm_p)
+        lon, lat = latlon_p.transform_point(easting, northing - LAT_CORR, utm_p)
         xyz = uvutils.XYZ_from_LatLonAlt(np.radians(lat), np.radians(lon), elevation)
         antpos_xyz[antnum, :] = xyz
         # also save antenna names
@@ -185,16 +179,16 @@ def make_uvh5_file(filename, metadata_file, data_file):
 
     # read in metadata
     metadata = read_header_data(metadata_file)
-    t0 = metadata[0]
-    mcnt = metadata[1]
-    nfreq = metadata[2]
-    nstokes = metadata[3]
-    corr_ver = metadata[4]
-    tag = metadata[5]
-    ant_0_array = metadata[6]
-    ant_1_array = metadata[7]
-    time_array = metadata[8]
-    integration_time = metadata[9]
+    t0 = metadata["t0"]
+    mcnt = metadata["mcnt"]
+    nfreq = metadata["nfreq"]
+    nstokes = metadata["nstokes"]
+    corr_ver = metadata["corr_ver"]
+    tag = metadata["tag"]
+    ant_0_array = metadata["ant_0_array"]
+    ant_1_array = metadata["ant_1_array"]
+    time_array = metadata["time_array"]
+    integration_time = metadata["integration_time"]
 
     # make sure metadata are the right size
     nblts = ant_0_array.shape[0]
@@ -230,8 +224,10 @@ def make_uvh5_file(filename, metadata_file, data_file):
         to_enu=True,
     )
 
-    # build frequency information
-    bandwidth = 250e6
+    # build frequency information from redis
+    rd = redis.Redis("redishost", decode_responses=True)
+    sample_freq = float(rd["feng:sample_freq"])
+    bandwidth = sample_freq / 2.0
     nchans = int(2048 // 4 * 3)  # number of channels we're writing
     nchans_f = 8192  # total number of channels in SNAP
     nchan_sum = 4  # averaging 4 channels together; may change in future
