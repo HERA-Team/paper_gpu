@@ -227,11 +227,11 @@ def make_uvh5_file(filename, metadata_file, data_file):
     # build frequency information from redis
     rd = redis.Redis("redishost", decode_responses=True)
     sample_freq = float(rd["feng:sample_freq"])
+    nchans_f = int(rd["feng:samples_per_mcnt"]) // 2
     bandwidth = sample_freq / 2.0
-    nchans = int(2048 // 4 * 3)  # number of channels we're writing
-    nchans_f = 8192  # total number of channels in SNAP
     nchan_sum = 4  # averaging 4 channels together; may change in future
-    start_chan = 1536
+    nchans = int(nchans_f // nchan_sum * 3 // 4)  # number of channels we're writing
+    start_chan = nchans_f // 16 * 3
     channel_width = bandwidth / nchans_f * nchan_sum
     freqs = np.linspace(0, bandwidth, nchans_f + 1)
     freqs = freqs[start_chan : start_chan + (nchans_f // 4 * 3)]  # downselect
