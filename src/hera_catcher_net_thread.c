@@ -123,6 +123,7 @@ static uint32_t set_block_filled(hera_catcher_bda_input_databuf_t *db, block_inf
   if(last_filled != block_i) {
     printf("block %d being marked filled, but expected block %d!\n", block_i, last_filled);
   }
+  printf("net_thread: marking block_i=%d filled\n", block_i);
 
   // Validate that block_i matches binfo->block_i
   if(block_i != binfo->block_i) {
@@ -287,6 +288,7 @@ static inline uint32_t process_packet(
        // Update binfo
        cur_bcnt += BASELINES_PER_BLOCK;
        binfo.bcnt_start += BASELINES_PER_BLOCK;
+       printf("net_thread: block_i=%d -> %d\n", binfo.block_i, (binfo.block_i + 1) % CATCHER_N_BLOCKS);
        binfo.block_i = (binfo.block_i+1) % CATCHER_N_BLOCKS; 
 
        // Wait (hopefully not long!) to acquire the block after next.
@@ -398,7 +400,7 @@ static inline uint32_t process_packet(
       // ARP: rounding this down to avoid straddling integrations. could be off by 1
       // if so, this will fail to jump back in at current block_i and stall disk thread
       first_bcnt = (first_bcnt / BASELINES_PER_BLOCK) * BASELINES_PER_BLOCK;
-      binfo.bcnt_start = pkt_header.bcnt;  
+      binfo.bcnt_start = (pkt_header.bcnt / BASELINES_PER_BLOCK) * BASELINES_PER_BLOCK;
       binfo.block_i = block_for_bcnt(pkt_header.bcnt);
       binfo.bcnt_log_late = binfo.bcnt_start + BASELINES_PER_BLOCK;
 

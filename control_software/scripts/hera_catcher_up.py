@@ -57,14 +57,14 @@ if args.redislog:
 
 # Start Catcher
 run_on_hosts([args.host], python_source_cmd + ['cd', '/data;', 'hera_catcher_init.sh'] + init_args + ['0'], wait=True)
-time.sleep(5)
+time.sleep(10)
 
 # Start hashpipe<->redis gateways
 cpu_mask = '0x0004'
 run_on_hosts([args.host], ['taskset', cpu_mask, 'hashpipe_redis_gateway.rb', '-g', args.host, '-i', '0'])
 
 # Wait for the gateways to come up
-time.sleep(5)
+time.sleep(10)
 
 # Generate the meta-data template
 run_on_hosts([args.host], python_source_cmd + ["hera_init_catcher_data.py"] + ["--verbose"], wait=True)
