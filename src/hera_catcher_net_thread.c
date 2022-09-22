@@ -116,6 +116,9 @@ static uint32_t set_block_filled(hera_catcher_bda_input_databuf_t *db, block_inf
   // Validate that we're filling blocks in the proper sequence
   // ARP don't understand last_filled math here (isn't it -1?). Also, this should work so
   // it is impossible to screw up the order.
+  // looks like it is implicitly tied to starting at block_i=0, and then advances
+  // along with it, as long as set_block_filled is only called once per block
+  // but if we skip a block, we never set filled, and the disk writer will lock
   last_filled = (last_filled+1) % CATCHER_N_BLOCKS;
   if(last_filled != block_i) {
     printf("block %d being marked filled, but expected block %d!\n", block_i, last_filled);
@@ -156,12 +159,12 @@ static uint32_t set_block_filled(hera_catcher_bda_input_databuf_t *db, block_inf
             PACKETS_PER_BLOCK, 
             binfo->block_packet_counter[block_i]);
     // Print stats per-xeng
-    fprintf(stderr, "Fraction pkts received:\n");
-    for (i=0; i<N_XENGINES; i++){
-      // ARP: this print is numerically incorrect
-      fprintf(stderr, "XengID %2d: %.2f\n", i,
-              (float)binfo->xeng_pkt_counter[block_i][i]/PACKETS_PER_X);
-    }
+    //fprintf(stderr, "Fraction pkts received:\n");
+    //for (i=0; i<N_XENGINES; i++){
+    //  // ARP: this print is numerically incorrect. xeng_pkt_counter is never incremented
+    //  fprintf(stderr, "XengID %2d: %.2f\n", i,
+    //          (float)binfo->xeng_pkt_counter[block_i][i]/PACKETS_PER_X);
+    //}
     // Increment MISSEDPK by number of missed packets for this block
     hgetu8(st_p->buf, "MISSEDPK", &missed_pkt_cnt);
     missed_pkt_cnt += block_missed_pkt_cnt;
@@ -229,11 +232,6 @@ static inline uint32_t process_packet(
   // Parse packet header
   get_header(p_frame, &pkt_header);
 
-  // Split the mcnt into a "pkt_mcnt" which is the same for all even/odd samples,
-  // and "time_demux_block", which indicates which even/odd block this packet came from
-  time_demux_block = (pkt_header.mcnt / Nt) % TIME_DEMUX;
-  pkt_mcnt = pkt_header.mcnt - (Nt*time_demux_block);
-
   pkt_bcnt = pkt_header.bcnt;
 
   // Lazy init binfo
@@ -253,7 +251,7 @@ static inline uint32_t process_packet(
     // ARP: pkt_bcnt could be part way through integration (not multiple of BASELINES_PER_BLOCK)
     // shouldn't it be floored to the nearest multiple of BASELINES_PER_BLOCK to avoid
     // marking blocks filled at weird times?
-    binfo.bcnt_start = pkt_bcnt;
+    binfo.bcnt_start = (pkt_bcnt / BASELINES_PER_BLOCK) * BASELINES_PER_BLOCK;
 
     fprintf(stdout,"Initializing the first blocks..\n");
     // Initialize the newly acquired blocks
@@ -343,6 +341,11 @@ static inline uint32_t process_packet(
 
     // If this is the first packet of this baseline, update header
     if(!binfo.baselines[pkt_block_i][b]){
+      // Split the mcnt into a "pkt_mcnt" which is the same for all even/odd samples,
+      // and "time_demux_block", which indicates which even/odd block this packet came from
+      time_demux_block = (pkt_header.mcnt / Nt) % TIME_DEMUX;
+      pkt_mcnt = pkt_header.mcnt - (Nt*time_demux_block);
+
       db->block[pkt_block_i].header.mcnt[b] = pkt_mcnt;
       db->block[pkt_block_i].header.ant_pair_0[b] = pkt_header.ant0;
       db->block[pkt_block_i].header.ant_pair_1[b] = pkt_header.ant1;
@@ -385,12 +388,16 @@ static inline uint32_t process_packet(
     binfo.out_of_seq_cnt++;
 
     // If too many out of sequence packets
-    // ARP: this shouldn't happen at all, so raise a bigger fuss
+    // ARP: this should only happen when catcher is tx restarted w/o restarting catcher
     if (binfo.out_of_seq_cnt > MAX_OUT_OF_SEQ_PKTS) {
       // Reset current mcnt. The value to reset to must be the first
       // value greater than or equal to the pkt_bcnt that corresponds 
       // to the same databuf block as the old current bcnt.  
+      // ARP: I'm not sure this works. first_bcnt might straddle integrations, now
       first_bcnt = pkt_header.bcnt - binfo.block_i*BASELINES_PER_BLOCK;
+      // ARP: rounding this down to avoid straddling integrations. could be off by 1
+      // if so, this will fail to jump back in at current block_i and stall disk thread
+      first_bcnt = (first_bcnt / BASELINES_PER_BLOCK) * BASELINES_PER_BLOCK;
       binfo.bcnt_start = pkt_header.bcnt;  
       binfo.block_i = block_for_bcnt(pkt_header.bcnt);
       binfo.bcnt_log_late = binfo.bcnt_start + BASELINES_PER_BLOCK;
