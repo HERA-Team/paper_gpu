@@ -57,4 +57,4 @@ time.sleep(2)
 catcher.clear_redis_keys(args.redishost)
 
 # Release hold that was set by hera_catcher_net_thread
-r.publish(pubchan, 'CNETHOLD=0')
+catcher.release_nethold(args.redishost)

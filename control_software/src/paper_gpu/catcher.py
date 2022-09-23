@@ -13,6 +13,7 @@ from . import bda
 logger = add_default_log_handlers(logging.getLogger(__file__))
 
 DEFAULT_CATCHER_HOST = 'hera-sn1'
+DEFAULT_REDISHOST = 'redishost'
 DEFAULT_ACCLEN = 147456 // 4  # XXX figure out where magic 4 comes from
 
 def mcnts_per_second(sample_rate, nchan):
@@ -31,26 +32,33 @@ def mcnts_per_second(sample_rate, nchan):
     """
     return sample_rate / (nchan * 2)
 
-def clear_redis_keys(redishost, catcher_host=DEFAULT_CATCHER_HOST):
+def clear_redis_keys(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
     '''
     '''
     r = redis.Redis(redishost, decode_responses=True)
     # Reset various statistics counters
     pubchan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
-    for key, val in catcher_dict.items():
-        r.publish(pubchan, 'NFILES=0')
-        r.publish(pubchan, 'TRIGGER=0')
-        r.publish(pubchan, 'MSPERFIL=0')
+    r.publish(pubchan, 'NFILES=0')
+    r.publish(pubchan, 'TRIGGER=0')
+    r.publish(pubchan, 'MSPERFIL=0')
     for v in ['NETWAT', 'NETREC', 'NETPRC']:
         r.publish(pubchan, '%sMN=99999' % (v))
         r.publish(pubchan, '%sMX=0' % (v))
     r.publish(pubchan, 'MISSEDPK=0')
 
+def release_nethold(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
+    '''
+    '''
+    r = redis.Redis(redishost, decode_responses=True)
+    # Reset various statistics counters
+    pubchan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
+    r.publish(pubchan, 'CNETHOLD=0')
+
 
 def set_observation(obs_len_hr, feng_sync_time_ms, start_delay=60,
-                    acclen=DEFAULT_ACC_LEN, xpipes=2, sample_rate=500e6,
+                    acclen=DEFAULT_ACCLEN, xpipes=2, sample_rate=500e6,
                     nchan=8192, mcnt_xgpu_block_size=2048, slices=2,
-                    redishost=None):
+                    redishost=DEFAULT_REDISHOST):
     '''
     Set acc_len, start_time, and obs_len on redis.
 
@@ -69,18 +77,18 @@ def set_observation(obs_len_hr, feng_sync_time_ms, start_delay=60,
     None
     '''
     assert acclen % mcnt_xgpu_block_size == 0, 'acc_len must be divisible by xgpu block size'
-    obs_len = int(obs_len_hr * 3600) # convert to seconds
+    obs_len = int(obs_len_hr * 3600) # convert hours to seconds
     file_duration_ms = int(2 * 2 * (acclen * 2) * xpipes * 2 * nchan / sample_rate * 1000)
     file_duration_s = file_duration_ms / 1000
     nfiles = int(obs_len / file_duration_s)
     t = Time.now() + TimeDelta(start_delay * units.second)
     lst_time = LSTScheduler(t, file_duration_s)
-    start_time = int(np.round(lst_time[0].unix * 1000)) # ms
+    start_time = int(np.round(lst_time[0].unix)) # s
     t0 = feng_sync_time_ms / 1000 # s
     mcnt_per_s = mcnts_per_second(sample_rate, nchan)
-    mcnt_delay = (start_time - t0) * mcnt_per_s
+    mcnt_delay = int((start_time - t0) * mcnt_per_s)
     # round to granularity of an integration in xGPU
-    trig_mcnt = mcnt_delay - (mcnt_delay % (mcnt_xgpu_block_size * slices))
+    trig_mcnt = mcnt_delay - int(mcnt_delay % int(mcnt_xgpu_block_size * slices))
     trig_time = trig_mcnt / mcnt_per_s + t0
     int_time = acclen * slices * mcnt_per_s
     
@@ -110,7 +118,7 @@ def set_observation(obs_len_hr, feng_sync_time_ms, start_delay=60,
             'ms_per_file': file_duration_ms, 'nfiles': nfiles,
             'feng_sync_time_ms': feng_sync_time_ms}
 
-def set_xeng_output_redis_keys(trig_mcnt, acclen, redishost=None,
+def set_xeng_output_redis_keys(trig_mcnt, acclen, redishost=DEFAULT_REDISHOST,
                          slice_by_xbox=False, slices=2, n_xeng_hosts=8,
                          mcnt_step_size=2):
     '''Use the hashpipe publish channel to update keys in all status buffers.
@@ -158,7 +166,7 @@ def set_xeng_output_redis_keys(trig_mcnt, acclen, redishost=None,
                     rdb.publish('hashpipe://%s/1/set' % host, msg)
 
 def start_observing(tag, ms_per_file, nfiles,
-                    redishost=None, catcher_host=DEFAULT_CATCHER_HOST,
+                    redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST,
                     nants_data=192, nants=352,
                     xpipes=2):
     '''
@@ -188,7 +196,7 @@ def start_observing(tag, ms_per_file, nfiles,
         logger.warn('No redishost provided. NOT setting redis keys.')
 
     # Populate redis with the necessary metadata
-    set_corr_to_hera_map(redishost, nants_data=nants_data, nants=nants)
+    set_corr_to_hera_map(nants_data=nants_data, nants=nants, redishost=redishost)
     set_integration_bins(bda_config, redishost, catcher_host=catcher_host)
 
     #Configure runtime parameters
@@ -212,14 +220,14 @@ def start_observing(tag, ms_per_file, nfiles,
     if redishost is not None:
         r.publish(pubchan, "TRIGGER=1")
 
-def stop_observing(redishost, catcher_host=DEFAULT_CATCHER_HOST):
+def stop_observing(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
     '''
     '''
     clear_redis_keys(redishost, catcher_host=catcher_host)
-    rdb = redis.Redis(args.redishost)
+    rdb = redis.Redis(redishost)
     rdb.publish("hashpipe:///set", 'INTSTAT=stop')
 
-def set_corr_to_hera_map(redishost, nants_data, nants):
+def set_corr_to_hera_map(nants_data, nants, redishost=DEFAULT_REDISHOST):
     """
     Return the correlator map. Reads corr:map and snap_configuration from redis,
     and sets corr:corr_to_hera_map.
@@ -260,20 +268,20 @@ def set_corr_to_hera_map(redishost, nants_data, nants):
         except(KeyError):
             snap_ant_chans = None
         if snap_ant_chans is None:
-            logger.warning("Couldn't find antenna indices for %s" % host)
+            logger.debug("Couldn't find antenna indices for %s" % host)
             continue
         corr_idx = json.loads(snap_ant_chans)[chan//2] #Indexes from 0-3 (ignores pol)
-        out_map[corr_idx] = hera_idx
-        logger.info("HERA antenna %d = corr input %d" % ( hera_idx, corr_idx))
+        out_map[corr_idx] = hera_ant_number
+        logger.debug("HERA antenna %d = corr input %d" % (hera_ant_number, corr_idx))
 
     # save into redis
     # we save as one long string, with newlines to differentiate
-    corr_to_hera_map_str = "\n".join([str(ant) for ant in list(corr_to_hera_map)])
+    corr_to_hera_map_str = "\n".join([str(ant) for ant in list(out_map)])
     r.hset("corr", "corr_to_hera_map", corr_to_hera_map_str)
 
     return out_map
 
-def set_integration_bins(bda_config, redishost=None, catcher_host=DEFAULT_CATCHER_HOST):
+def set_integration_bins(bda_config, redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
     """
     Populate redis with baseline-dependent integration information based
     on corr_to_hera_map in redis.

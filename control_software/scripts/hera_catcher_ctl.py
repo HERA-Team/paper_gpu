@@ -21,7 +21,7 @@ args = parser.parse_args()
 assert args.action in ['start', 'stop'], 'Available actions are "start" and "stop"'
 
 if args.action == 'stop':
-    catcher.stop_observing()
+    catcher.stop_observing(redishost=args.redishost)
 
 if args.action == 'start':
     rdb = redis.Redis(args.redishost)
