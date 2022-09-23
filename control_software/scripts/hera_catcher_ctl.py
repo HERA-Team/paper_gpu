@@ -14,6 +14,8 @@ parser.add_argument('-r', dest='redishost', type=str, default='redishost',
 # XXX remove obslen and just record until stop is issued
 parser.add_argument('--obslen', type=float, default=1,
                     help='Observation length in hours. default 1')
+parser.add_argument('--start_delay', type=float, default=30,
+                    help='Seconds from present to start observing. Default 30')
 parser.add_argument('--tag', dest='tag', type=str, default='delete',
                     help='A descriptive tag to go into data files')
 args = parser.parse_args()
@@ -26,7 +28,7 @@ if args.action == 'stop':
 if args.action == 'start':
     rdb = redis.Redis(args.redishost)
     feng_sync_time_ms = int(rdb['corr:feng_sync_time'])
-    prms = catcher.set_observation(args.obslen, feng_sync_time_ms,
+    prms = catcher.set_observation(args.obslen, feng_sync_time_ms, start_delay=args.start_delay,
                                    redishost=args.redishost)
     catcher.set_xeng_output_redis_keys(prms['trig_mcnt'],
                                        prms['acclen'],
