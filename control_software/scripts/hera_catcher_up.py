@@ -49,7 +49,7 @@ run_on_hosts([args.host], python_source_cmd + ['cd', '/data;', 'hera_catcher_ini
 
 # Start hashpipe<->redis gateways
 cpu_mask = '0x0004'
-procs = run_on_hosts([args.host], ['taskset', cpu_mask, 'hashpipe_redis_gateway.rb', '-g', args.host, '-i', '0'], wait=True) # XXX should this wait?
+procs = run_on_hosts([args.host], ['taskset', cpu_mask, 'hashpipe_redis_gateway.rb', '-g', args.host, '-i', '0'], wait=True)
 
 # Wait for the gateways to come up
 #time.sleep(2)
