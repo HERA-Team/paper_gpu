@@ -326,6 +326,7 @@ def set_integration_bins(bda_config, redishost=DEFAULT_REDISHOST, catcher_host=D
     pubchan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
     for i, cnt in baselines.items():
         if redishost is not None:
+            # XXX do these get overwritten in lines 364-368 of hera_gpu_bda_thread?
             r.publish(pubchan, 'NBL%dSEC=%d'  % (2**(i+1), cnt))
     if redishost is not None:
         r.publish(pubchan, 'BDANANT=%d' % nants)
