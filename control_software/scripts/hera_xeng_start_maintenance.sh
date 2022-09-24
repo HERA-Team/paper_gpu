@@ -46,5 +46,5 @@ echo xtor_up.py --runtweak --redislog px{1..16} &>> $LOGFILE
 xtor_up.py --runtweak --redislog px{1..16} &>> $LOGFILE
 echo hera_catcher_up.py --redislog &>> $LOGFILE
 hera_catcher_up.py --redislog &>> $LOGFILE
-echo hera_ctl.py start --obslen=$obslen --tag $TAG &>> $LOGFILE
+echo hera_catcher_ctl.py start --obslen=$obslen --tag $TAG &>> $LOGFILE
 hera_catcher_ctl.py start --obslen=$obslen --tag $TAG &>> $LOGFILE
