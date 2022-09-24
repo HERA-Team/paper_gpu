@@ -363,7 +363,7 @@ typedef struct hera_catcher_input_databuf {
  * Structures and parameters
  */
 
-#define BASELINES_PER_BLOCK     256 //8192
+#define BASELINES_PER_BLOCK     2048 //8192
 #define CATCHER_CHAN_SUM_BDA     4
 #define CHAN_PER_CATCHER_PKT   (OUTPUT_BYTES_PER_PACKET/(N_STOKES * 8L))                    // 128
 #define PACKETS_PER_BASELINE   (N_CHAN_TOTAL/CHAN_PER_CATCHER_PKT)                          //  48

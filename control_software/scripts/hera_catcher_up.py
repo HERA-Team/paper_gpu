@@ -33,7 +33,11 @@ args = parser.parse_args()
 # Environment sourcing command required to run remote python jobs
 python_source_cmd = ["source", os.path.join(args.pypath, "bin/activate"), "hera", ";"]
 
-r = redis.Redis(args.redishost, decode_responses=True)
+#r = redis.Redis(args.redishost, decode_responses=True)
+#r = redis.Redis(args.redishost)
+#sub = r.pubsub()
+#sub.subscribe('hashpipe://%s/%d/set' % (args.host, 0))
+
 
 # Run performance tweaking script
 if args.runtweak:
@@ -45,16 +49,24 @@ if args.redislog:
 
 # Start Catcher
 run_on_hosts([args.host], python_source_cmd + ['cd', '/data;', 'hera_catcher_init.sh'] + init_args + ['0'], wait=True)
-#time.sleep(5)
+time.sleep(5)
 
 # Start hashpipe<->redis gateways
 cpu_mask = '0x0004'
 procs = run_on_hosts([args.host], ['taskset', cpu_mask, 'hashpipe_redis_gateway.rb', '-g', args.host, '-i', '0'], wait=True)
+time.sleep(5)
 
-# Wait for the gateways to come up
-#time.sleep(2)
 
 catcher.clear_redis_keys(args.redishost)
 
+# Wait for threads to be ready
+#for msg in sub.listen():
+#    print(msg)
+#    if msg['type'] == 'message' and msg['data'] == 'CNETHOLD=0':
+#        break
+#    else:
+#        continue
+
+time.sleep(10)
 # Release hold that was set by hera_catcher_net_thread
 catcher.release_nethold(args.redishost)
