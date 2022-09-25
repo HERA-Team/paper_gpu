@@ -314,7 +314,7 @@ def set_integration_bins(bda_config, redishost=DEFAULT_REDISHOST, catcher_host=D
 
     # write BDA distribution to hashpipe redis
     baselines = {i: 0 for i in range(4)}
-    nants = len([ant0 for ant0, ant1, _ in bda_config if ant0 == ant1])
+    nants = len([ant0 for ant0, ant1, t in bda_config if ant0 == ant1 and t > 0])
 
     for ant0, ant1, t in bda_config:
         if t == 0:
