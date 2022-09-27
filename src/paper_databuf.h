@@ -433,7 +433,7 @@ typedef struct hera_catcher_bda_input_databuf {
  * CATCHER - autocorr buffers
  */
 
-#define BYTES_AUTOCORR_BLK  (N_CHAN_TOTAL * N_ANTS * N_STOKES * 8L)
+#define BYTES_AUTOCORR_BLK  (N_CHAN_TOTAL * N_ANTS_TOTAL * N_STOKES * 8L)
 #define AUTOCORR_N_BLOCKS    4
 
 #define hera_catcher_autocorr_databuf_idx32(a) \
