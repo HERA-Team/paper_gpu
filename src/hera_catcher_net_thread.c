@@ -123,7 +123,7 @@ static uint32_t set_block_filled(hera_catcher_bda_input_databuf_t *db, block_inf
   if(last_filled != block_i) {
     printf("block %d being marked filled, but expected block %d!\n", block_i, last_filled);
   }
-  printf("net_thread: marking block_i=%d filled\n", block_i);
+  //printf("net_thread: marking block_i=%d filled\n", block_i);
 
   // Validate that block_i matches binfo->block_i
   if(block_i != binfo->block_i) {
@@ -288,7 +288,7 @@ static inline uint32_t process_packet(
        // Update binfo
        cur_bcnt += BASELINES_PER_BLOCK;
        binfo.bcnt_start += BASELINES_PER_BLOCK;
-       printf("net_thread: block_i=%d -> %d\n", binfo.block_i, (binfo.block_i + 1) % CATCHER_N_BLOCKS);
+       //printf("net_thread: block_i=%d -> %d\n", binfo.block_i, (binfo.block_i + 1) % CATCHER_N_BLOCKS);
        binfo.block_i = (binfo.block_i+1) % CATCHER_N_BLOCKS; 
 
        // Wait (hopefully not long!) to acquire the block after next.
@@ -497,7 +497,7 @@ static void *run(hashpipe_thread_args_t * args){
   int holdoff = 1;
 
   // Force ourself into the hold off state
-  fprintf(stdout, "Setting CNETHOLD state to 1.Waiting for someone to set it to 0\n");
+  fprintf(stdout, "Setting CNETHOLD=1. Waiting for hera_catcher_up to set it to 0\n");
   hashpipe_status_lock_safe(&st);
   hputi4(st.buf, "CNETHOLD", 1);
   hputs(st.buf, status_key, "holding");
