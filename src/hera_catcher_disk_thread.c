@@ -782,6 +782,7 @@ static void *run(hashpipe_thread_args_t * args)
             // Let RTP know we have a new session available
             redisCommand(c, "HMSET rtp:has_new_data state True");
           }
+          //printf("disk_thread: curblock_in=%d -> %d\n", curblock_in, (curblock_in + 1) % CATCHER_N_BLOCKS);
           curblock_in = (curblock_in + 1) % CATCHER_N_BLOCKS;
           continue;
         }
@@ -1037,6 +1038,7 @@ static void *run(hashpipe_thread_args_t * args)
             hashpipe_error(__FUNCTION__, "error marking databuf %d free", curblock_in);
             pthread_exit(NULL);
         }
+        //fprintf(stdout, "disk_thread: curblock_in=%d->%d\n", curblock_in, (curblock_in + 1) % CATCHER_N_BLOCKS);
         curblock_in = (curblock_in + 1) % CATCHER_N_BLOCKS;
 
         /* Check for cancel */

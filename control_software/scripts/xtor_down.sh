@@ -86,7 +86,7 @@ fi
 
 # Stop integrations
 echo "stopping integrations"
-hera_ctl.py stop
+hera_catcher_ctl.py stop
 
 # Stop hashpipe-redis gateways
 echo "stopping hashpipe-redis gateways"

@@ -363,7 +363,7 @@ typedef struct hera_catcher_input_databuf {
  * Structures and parameters
  */
 
-#define BASELINES_PER_BLOCK     256 //8192
+#define BASELINES_PER_BLOCK     2048 //8192
 #define CATCHER_CHAN_SUM_BDA     4
 #define CHAN_PER_CATCHER_PKT   (OUTPUT_BYTES_PER_PACKET/(N_STOKES * 8L))                    // 128
 #define PACKETS_PER_BASELINE   (N_CHAN_TOTAL/CHAN_PER_CATCHER_PKT)                          //  48
@@ -433,7 +433,7 @@ typedef struct hera_catcher_bda_input_databuf {
  * CATCHER - autocorr buffers
  */
 
-#define BYTES_AUTOCORR_BLK  (N_CHAN_TOTAL * N_ANTS * N_STOKES * 8L)
+#define BYTES_AUTOCORR_BLK  (N_CHAN_TOTAL * N_ANTS_TOTAL * N_STOKES * 8L)
 #define AUTOCORR_N_BLOCKS    4
 
 #define hera_catcher_autocorr_databuf_idx32(a) \

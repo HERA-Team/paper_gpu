@@ -44,6 +44,7 @@
 
 // This allows packets to be two full databufs late without being considered
 // out of sequence.
+// ARP: dont think this is a tight enough threshold
 #define LATE_PKT_BCNT_THRESHOLD (2*BASELINES_PER_BLOCK*CATCHER_N_BLOCKS)
 
 
@@ -110,13 +111,19 @@ static uint32_t set_block_filled(hera_catcher_bda_input_databuf_t *db, block_inf
   uint64_t block_missed_pkt_cnt;
   uint64_t block_missed_xengs, block_missed_mod_cnt, missed_pkt_cnt=0;
   uint32_t block_i = block_for_bcnt(binfo->bcnt_start);
-  int i;
+  //int i;
 
   // Validate that we're filling blocks in the proper sequence
+  // ARP don't understand last_filled math here (isn't it -1?). Also, this should work so
+  // it is impossible to screw up the order.
+  // looks like it is implicitly tied to starting at block_i=0, and then advances
+  // along with it, as long as set_block_filled is only called once per block
+  // but if we skip a block, we never set filled, and the disk writer will lock
   last_filled = (last_filled+1) % CATCHER_N_BLOCKS;
   if(last_filled != block_i) {
     printf("block %d being marked filled, but expected block %d!\n", block_i, last_filled);
   }
+  //printf("net_thread: marking block_i=%d filled\n", block_i);
 
   // Validate that block_i matches binfo->block_i
   if(block_i != binfo->block_i) {
@@ -153,11 +160,12 @@ static uint32_t set_block_filled(hera_catcher_bda_input_databuf_t *db, block_inf
             PACKETS_PER_BLOCK, 
             binfo->block_packet_counter[block_i]);
     // Print stats per-xeng
-    fprintf(stderr, "Fraction pkts received:\n");
-    for (i=0; i<N_XENGINES; i++){
-      fprintf(stderr, "XengID %2d: %.2f\n", i,
-              (float)binfo->xeng_pkt_counter[block_i][i]/PACKETS_PER_X);
-    }
+    //fprintf(stderr, "Fraction pkts received:\n");
+    //for (i=0; i<N_XENGINES; i++){
+    //  // ARP: this print is numerically incorrect. xeng_pkt_counter is never incremented
+    //  fprintf(stderr, "XengID %2d: %.2f\n", i,
+    //          (float)binfo->xeng_pkt_counter[block_i][i]/PACKETS_PER_X);
+    //}
     // Increment MISSEDPK by number of missed packets for this block
     hgetu8(st_p->buf, "MISSEDPK", &missed_pkt_cnt);
     missed_pkt_cnt += block_missed_pkt_cnt;
@@ -187,6 +195,8 @@ static inline void initialize_block_info(block_info_t * binfo){
     }
 
     // Start with block 0
+    // ARP: confused why start with block_i=0 and not whatever block_i corresponds
+    // to the first packet that arrives
     binfo->out_of_seq_cnt = 0;
     binfo->block_i        = 0;
     binfo->bcnt_log_late  = BASELINES_PER_BLOCK;
@@ -214,7 +224,7 @@ static inline uint32_t process_packet(
   uint32_t pkt_bcnt;
   uint64_t pkt_mcnt;
   uint32_t cur_bcnt;
-  uint32_t netbcnt = -1; // Value to return if a block is filled
+  uint32_t netbcnt = -1; // Value to return unless block is filled
   int b, x, t, o;
   int rv;
   uint32_t pkt_offset;
@@ -223,21 +233,26 @@ static inline uint32_t process_packet(
   // Parse packet header
   get_header(p_frame, &pkt_header);
 
-  // Split the mcnt into a "pkt_mcnt" which is the same for all even/odd samples,
-  // and "time_demux_block", which indicates which even/odd block this packet came from
-  time_demux_block = (pkt_header.mcnt / Nt) % TIME_DEMUX;
-  pkt_mcnt = pkt_header.mcnt - (Nt*time_demux_block);
-
   pkt_bcnt = pkt_header.bcnt;
 
   // Lazy init binfo
   if(!binfo.initialized){
     // This is the first packet received
-    fprintf(stdout,"Initializing binfo..!\n");
+    fprintf(stdout,"Initializing binfo..\n");
+    // ARP: this starts us at block_i=0, but I think it bcnts should be absolutely
+    // referenced to blocks, i.e. we start at block_i=pkt_block_i + 1 (or 2), wait
+    // for that one to come around to get started, and then always mark as filled the
+    // block 2 back.
     initialize_block_info(&binfo);
 
-    first_bcnt = 0; //pkt_bcnt;
-    binfo.bcnt_start = pkt_bcnt;
+    // ARP: why not set first_bcnt=0 up above? Should always be 0 unless too many out of order
+    // packets triggers a reset. Crucial that this be a multiple of BASELINES_PER_BLOCK or
+    // blocks will straddle integration boundaries.
+    first_bcnt = 0; // DO NOT SET TO pkt_bcnt;
+    // ARP: pkt_bcnt could be part way through integration (not multiple of BASELINES_PER_BLOCK)
+    // shouldn't it be floored to the nearest multiple of BASELINES_PER_BLOCK to avoid
+    // marking blocks filled at weird times?
+    binfo.bcnt_start = (pkt_bcnt / BASELINES_PER_BLOCK) * BASELINES_PER_BLOCK;
 
     fprintf(stdout,"Initializing the first blocks..\n");
     // Initialize the newly acquired blocks
@@ -254,11 +269,13 @@ static inline uint32_t process_packet(
 
   // Packet bcnt distance (how far away is this packet's bcnt from the
   // current bcnt).  Positive distance for pcnt mcnts > current mcnt.
+  // ARP: prefer comparing pkt_block_i to binfo.block_i to trigger advance
   pkt_bcnt_dist = pkt_bcnt - cur_bcnt;
 
   // We expect packets for the current block (0) and the next block (1). If a packet 
   // belonging to the block after (2) arrives, the current block is marked full and
   // counters advance (1,2,3). 
+  // ARP: currently tuned to transmissions don't overlap at all, so could reduce this to 1
   if (0 <= pkt_bcnt_dist && pkt_bcnt_dist < 3*BASELINES_PER_BLOCK){
     // If the packet is for the block after the next block (i.e. current 
     // block + 2 blocks), mark the current block as filled.
@@ -271,6 +288,7 @@ static inline uint32_t process_packet(
        // Update binfo
        cur_bcnt += BASELINES_PER_BLOCK;
        binfo.bcnt_start += BASELINES_PER_BLOCK;
+       //printf("net_thread: block_i=%d -> %d\n", binfo.block_i, (binfo.block_i + 1) % CATCHER_N_BLOCKS);
        binfo.block_i = (binfo.block_i+1) % CATCHER_N_BLOCKS; 
 
        // Wait (hopefully not long!) to acquire the block after next.
@@ -325,6 +343,11 @@ static inline uint32_t process_packet(
 
     // If this is the first packet of this baseline, update header
     if(!binfo.baselines[pkt_block_i][b]){
+      // Split the mcnt into a "pkt_mcnt" which is the same for all even/odd samples,
+      // and "time_demux_block", which indicates which even/odd block this packet came from
+      time_demux_block = (pkt_header.mcnt / Nt) % TIME_DEMUX;
+      pkt_mcnt = pkt_header.mcnt - (Nt*time_demux_block);
+
       db->block[pkt_block_i].header.mcnt[b] = pkt_mcnt;
       db->block[pkt_block_i].header.ant_pair_0[b] = pkt_header.ant0;
       db->block[pkt_block_i].header.ant_pair_1[b] = pkt_header.ant1;
@@ -348,6 +371,7 @@ static inline uint32_t process_packet(
   // restarted and bcnt rollover), then ignore it
   else if(pkt_bcnt_dist < 0  && pkt_bcnt_dist > -LATE_PKT_BCNT_THRESHOLD) {
     // Issue warning if not after a reset
+    // ARP: would prefer to measure in blocks, not bcnts
     if (cur_bcnt >= binfo.bcnt_log_late) {
        hashpipe_warn("hera_catcher_bda_net_thread", 
            "Ignorning late packet (%d bcnts late)", 
@@ -366,12 +390,17 @@ static inline uint32_t process_packet(
     binfo.out_of_seq_cnt++;
 
     // If too many out of sequence packets
+    // ARP: this should only happen when catcher is tx restarted w/o restarting catcher
     if (binfo.out_of_seq_cnt > MAX_OUT_OF_SEQ_PKTS) {
       // Reset current mcnt. The value to reset to must be the first
       // value greater than or equal to the pkt_bcnt that corresponds 
       // to the same databuf block as the old current bcnt.  
+      // ARP: I'm not sure this works. first_bcnt might straddle integrations, now
       first_bcnt = pkt_header.bcnt - binfo.block_i*BASELINES_PER_BLOCK;
-      binfo.bcnt_start = pkt_header.bcnt;  
+      // ARP: rounding this down to avoid straddling integrations. could be off by 1
+      // if so, this will fail to jump back in at current block_i and stall disk thread
+      first_bcnt = (first_bcnt / BASELINES_PER_BLOCK) * BASELINES_PER_BLOCK;
+      binfo.bcnt_start = (pkt_header.bcnt / BASELINES_PER_BLOCK) * BASELINES_PER_BLOCK;
       binfo.block_i = block_for_bcnt(pkt_header.bcnt);
       binfo.bcnt_log_late = binfo.bcnt_start + BASELINES_PER_BLOCK;
 
@@ -468,7 +497,7 @@ static void *run(hashpipe_thread_args_t * args){
   int holdoff = 1;
 
   // Force ourself into the hold off state
-  fprintf(stdout, "Setting CNETHOLD state to 1.Waiting for someone to set it to 0\n");
+  fprintf(stdout, "Setting CNETHOLD=1. Waiting for hera_catcher_up to set it to 0\n");
   hashpipe_status_lock_safe(&st);
   hputi4(st.buf, "CNETHOLD", 1);
   hputs(st.buf, status_key, "holding");

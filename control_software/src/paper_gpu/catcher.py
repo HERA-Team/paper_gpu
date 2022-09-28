@@ -32,27 +32,50 @@ def mcnts_per_second(sample_rate, nchan):
     """
     return sample_rate / (nchan * 2)
 
+def wait_for_catcher_boot(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST,
+                          maxwait=60):
+    r = redis.Redis(redishost, decode_responses=True)
+    chan = f'hashpipe://{catcher_host}/0/status'
+    t0 = time.time()
+    while True:
+        try:
+            assert r.hexists(chan, 'CNETSTAT')
+            assert r.hexists(chan, 'CNETHOLD')
+            assert r.hget(chan, 'CNETSTAT') == 'holding'
+            assert int(r.hget(chan, 'CNETHOLD')) == 1
+            logger.info('Catcher ready.')
+            break
+        except(AssertionError):
+            if time.time() - t0 > maxwait:
+                logger.error('Catcher failed to boot.')
+                raise RuntimeError(f'Maxwait={maxwait} exceeded in wait_for_catcher_boot')
+            else:
+                logger.info('Waiting for catcher threads to boot...')
+                time.sleep(2)
+
+
 def clear_redis_keys(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
     '''
     '''
     r = redis.Redis(redishost, decode_responses=True)
     # Reset various statistics counters
-    pubchan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
-    r.publish(pubchan, 'NFILES=0')
-    r.publish(pubchan, 'TRIGGER=0')
-    r.publish(pubchan, 'MSPERFIL=0')
+    logger.info('Resetting Catcher redis keys')
+    chan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
+    r.publish(chan, 'NFILES=0')
+    r.publish(chan, 'TRIGGER=0')
+    r.publish(chan, 'MSPERFIL=0')
     for v in ['NETWAT', 'NETREC', 'NETPRC']:
-        r.publish(pubchan, '%sMN=99999' % (v))
-        r.publish(pubchan, '%sMX=0' % (v))
-    r.publish(pubchan, 'MISSEDPK=0')
+        r.publish(chan, f'{v}MN=99999')
+        r.publish(chan, f'{v}MX=0')
+    r.publish(chan, 'MISSEDPK=0')
 
 def release_nethold(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
     '''
     '''
     r = redis.Redis(redishost, decode_responses=True)
-    # Reset various statistics counters
-    pubchan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
-    r.publish(pubchan, 'CNETHOLD=0')
+    chan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
+    logger.info('Releasing nethold (CNETHOLD=0)')
+    r.publish(chan, 'CNETHOLD=0')
 
 
 def set_observation(obs_len_hr, feng_sync_time_ms, start_delay=60,
@@ -208,23 +231,23 @@ def start_observing(tag, ms_per_file, nfiles,
       'TAG'      : tag,
     }
 
-    pubchan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
+    chan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
     logger.debug(f'On redishost={redishost} setting:')
     for key, val in catcher_dict.items():
-        logger.debug(f'   ', pubchan, '%s=%s' % (key, val))
+        logger.debug(f'   ', chan, '%s=%s' % (key, val))
         if redishost is not None:
-            r.publish(pubchan, '%s=%s' % (key, val))
+            r.publish(chan, f'{key}={val}')
 
     time.sleep(0.1) # trigger after parameters have had time to write
-    logger.debug(f'   ', pubchan, 'TRIGGER=1')
+    logger.debug(f'   ', chan, 'TRIGGER=1')
     if redishost is not None:
-        r.publish(pubchan, "TRIGGER=1")
+        r.publish(chan, "TRIGGER=1")
 
 def stop_observing(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
     '''
     '''
     clear_redis_keys(redishost, catcher_host=catcher_host)
-    rdb = redis.Redis(redishost)
+    rdb = redis.Redis(redishost, decode_responses=True)
     rdb.publish("hashpipe:///set", 'INTSTAT=stop')
 
 def set_corr_to_hera_map(nants_data, nants, redishost=DEFAULT_REDISHOST):
@@ -314,7 +337,7 @@ def set_integration_bins(bda_config, redishost=DEFAULT_REDISHOST, catcher_host=D
 
     # write BDA distribution to hashpipe redis
     baselines = {i: 0 for i in range(4)}
-    nants = len([ant0 for ant0, ant1, _ in bda_config if ant0 == ant1])
+    nants = len([ant0 for ant0, ant1, t in bda_config if ant0 == ant1 and t > 0])
 
     for ant0, ant1, t in bda_config:
         if t == 0:
@@ -323,10 +346,10 @@ def set_integration_bins(bda_config, redishost=DEFAULT_REDISHOST, catcher_host=D
         n = min(int(np.log2(t)), 3)
         baselines[n] += 1
 
-    pubchan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
+    chan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
     for i, cnt in baselines.items():
         if redishost is not None:
             # XXX do these get overwritten in lines 364-368 of hera_gpu_bda_thread?
-            r.publish(pubchan, 'NBL%dSEC=%d'  % (2**(i+1), cnt))
+            r.publish(chan, f'NBL{2**(i+1)}SEC={cnt}')
     if redishost is not None:
-        r.publish(pubchan, 'BDANANT=%d' % nants)
+        r.publish(chan, f'BDANANT={nants}')
