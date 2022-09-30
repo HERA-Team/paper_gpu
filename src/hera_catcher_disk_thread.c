@@ -988,9 +988,10 @@ static void *run(hashpipe_thread_args_t * args)
                 }
 
                 clock_gettime(CLOCK_MONOTONIC, &w_start);
-                write_baseline_index(sum_file, nbls, (uint64_t *)bl_buf_sum);
+		// have to skip over previously written content in bl_buf_sum/diff
+                write_baseline_index(sum_file, nbls, (uint64_t *)(bl_buf_sum+2*(break_bcnt - strt_bcnt)*N_CHAN_PROCESSED*N_STOKES));
                 #ifndef SKIP_DIFF
-                write_baseline_index(diff_file, nbls, (uint64_t *)bl_buf_diff);
+                write_baseline_index(diff_file, nbls, (uint64_t *)(bl_buf_diff+2*(break_bcnt - strt_bcnt)*N_CHAN_PROCESSED*N_STOKES));
                 #endif
                 clock_gettime(CLOCK_MONOTONIC, &w_stop);
 
