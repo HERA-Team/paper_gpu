@@ -570,7 +570,7 @@ static void *run(hashpipe_thread_args_t * args)
     // XXX code is inconsistent wrt "use_redis". Either respect it or raise error
 
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
-        redisCommand(c, "HMSET corr:catcher_cwd %s", cwd);
+        redisCommand(c, "HMSET corr:catcher cwd %s", cwd);
     } else {
         fprintf(stderr, "Failed to find catcher_cwd to set it in redis\n");
     }
