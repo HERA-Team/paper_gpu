@@ -30,7 +30,7 @@ def match_up_filenames(f, cwd=None):
     return (f_in, f_meta, f_out)
 
 def get_cwd_from_redis(r, default='/data'):
-    cwd = r.hget('corr', 'catcher_cwd')
+    cwd = r.hget('corr:catcher', 'cwd')
     if cwd is None:
         return default
     else:
