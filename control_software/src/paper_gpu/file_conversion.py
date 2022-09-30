@@ -5,6 +5,7 @@
 import time
 import h5py
 import redis
+import warnings
 import numpy as np
 import cartopy.crs as ccrs
 import pyuvdata.utils as uvutils
