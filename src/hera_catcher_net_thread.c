@@ -276,10 +276,10 @@ static inline uint32_t process_packet(
   // belonging to the block after (2) arrives, the current block is marked full and
   // counters advance (1,2,3). 
   // ARP: currently tuned to transmissions don't overlap at all, so could reduce this to 1
-  if (0 <= pkt_bcnt_dist && pkt_bcnt_dist < 3*BASELINES_PER_BLOCK){
+  if (0 <= pkt_bcnt_dist && pkt_bcnt_dist < 3*CATCHER_N_BLOCKS/4*BASELINES_PER_BLOCK){
     // If the packet is for the block after the next block (i.e. current 
     // block + 2 blocks), mark the current block as filled.
-    if (pkt_bcnt_dist >= 2*BASELINES_PER_BLOCK){
+    if (pkt_bcnt_dist >= 2*CATCHER_N_BLOCKS/4*BASELINES_PER_BLOCK){
        
        netbcnt = set_block_filled(db, &binfo);
        //fprintf(stdout,"Filled Block: %d from bcnt: %d to bcnt: %d\n", binfo.block_i, db->block[binfo.block_i].header.bcnt[0], 
