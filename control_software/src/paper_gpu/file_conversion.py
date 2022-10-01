@@ -169,7 +169,8 @@ def make_uvh5_file(filename, metadata_file, data_file):
 
     Returns
     -------
-    None
+    metadata : dict
+        Metadata read from the meta hdf5 file
     """
     # get cminfo from redis
     cminfo = redis_cm.read_cminfo_from_redis(return_as="dict")
@@ -343,4 +344,4 @@ def make_uvh5_file(filename, metadata_file, data_file):
         )
 
     # we're done!
-    return
+    return metadata

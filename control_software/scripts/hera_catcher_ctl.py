@@ -21,6 +21,7 @@ parser.add_argument('--tag', dest='tag', type=str, default='delete',
 args = parser.parse_args()
 
 assert args.action in ['start', 'stop'], 'Available actions are "start" and "stop"'
+assert args.tag in catcher.TAGS
 
 if args.action == 'stop':
     catcher.stop_observing(redishost=args.redishost)

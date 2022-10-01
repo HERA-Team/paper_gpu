@@ -12,6 +12,7 @@ from . import bda
 
 logger = add_default_log_handlers(logging.getLogger(__file__))
 
+TAGS = ('delete', 'junk', 'engineering', 'science')
 DEFAULT_CATCHER_HOST = 'hera-sn1'
 DEFAULT_REDISHOST = 'redishost'
 DEFAULT_ACCLEN = 147456 // 4  # XXX figure out where magic 4 comes from
