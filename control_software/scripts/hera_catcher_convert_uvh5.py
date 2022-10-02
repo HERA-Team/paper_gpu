@@ -5,6 +5,7 @@ import re
 import os
 import psutil
 import signal
+import numpy as np
 from paper_gpu.file_conversion import make_uvh5_file
 from astropy.time import Time  # XXX remove this dependency too?
 from hera_mc import mc
@@ -97,7 +98,7 @@ if __name__ == '__main__':
     assert psutil.cpu_count() == 12, "if this errors, you're not on hera-sn1"
 
     r = redis.Redis(REDISHOST, decode_responses=True)
-    db = mc.connect_to_mc_db()
+    db = mc.connect_to_mc_db(None)
     cwd = get_cwd_from_redis(r)
     qlen = r.llen(RAW_FILE_KEY)
     print(f'Starting conversion. {cwd}')
