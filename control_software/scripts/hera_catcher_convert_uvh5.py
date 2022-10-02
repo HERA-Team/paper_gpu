@@ -7,7 +7,6 @@ import psutil
 import signal
 from paper_gpu.file_conversion import make_uvh5_file
 from astropy.time import Time  # XXX remove this dependency too?
-from pyuvdata import UVData  # XXX remove this dependency
 from hera_mc import mc
 
 DELETE_TAGS = ('delete', 'junk')
@@ -48,17 +47,9 @@ def process_next(f, cwd, db=None):
     r.hdel(PURG_FILE_KEY, f)
     print(f'Finished {f_in} -> {f_out}')
     if db is not None:
-        add_to_mc(db, f_out, info)
+        add_to_mc_and_rtp(db, f_out, info)
 
-def get_uvh5_info(f):
-    uv = UVData()
-    uv.read_uvh5(f, read_data=False)
-    info = {'time_array': uv.time_array, 'tag': uv.extra_keywords['tag']}
-    return info
-
-def add_to_mc_and_rtp(db, f, info=None):
-    if info is None:
-        info = get_uvh5_info(f)
+def add_to_mc_and_rtp(db, f, info):
     tag = info['tag']
     if tag in DELETE_TAGS:
         print(f'Skipping tag {tag} in {f}')
