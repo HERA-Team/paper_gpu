@@ -44,7 +44,6 @@ def process_next(f, cwd, hostname):
     (f_in, f_meta, f_out), is_diff = match_up_filenames(f, cwd)
     info = make_uvh5_file(f_out, f_meta, f_in)
     print(f'Finished {f_in} -> {f_out}')
-    f_out_rel = os.path.relpath(f_out, cwd)
     times = np.unique(info['time_array'])
     starttime = Time(times[0], scale='utc', format='jd')
     stoptime = Time(times[-1], scale='utc', format='jd')
@@ -68,7 +67,8 @@ def process_next(f, cwd, hostname):
             result = session.get_rtp_launch_record(obs_id)
             if len(result) == 0:
                 print(f'Inserting {obs_id} for file {f} in RTP')
-                session.add_rtp_launch_record(obs_id, int_jd, info['tag'], f_out_rel, prefix)
+                session.add_rtp_launch_record(obs_id, int_jd, info['tag'],
+                                              os.path.split(f_out)[-1], prefix)
             else:
                 t0 = Time.now()
                 session.update_rtp_launch_record(obs_id, t0)
