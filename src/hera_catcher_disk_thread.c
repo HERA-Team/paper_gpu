@@ -919,9 +919,9 @@ static void *run(hashpipe_thread_args_t * args)
                  file_cnt += 1;
 
                  if (use_redis) {
-                   redisCommand(c, "RPUSH corr:raw_files %s", sum_fname);
+                   redisCommand(c, "RPUSH corr:files:raw %s", sum_fname);
                    #ifndef SKIP_DIFF
-                   redisCommand(c, "RPUSH corr:raw_files %s", diff_fname);
+                   redisCommand(c, "RPUSH corr:files:raw %s", diff_fname);
                    #endif
                  }
 
