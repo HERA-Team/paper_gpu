@@ -524,6 +524,7 @@ static void *run(hashpipe_thread_args_t * args)
     char sum_fname[128];
     char diff_fname[128];
     char data_directory[128];
+    char cwd[128];
 
     // Variables for sync time and computed gps time / JD
     uint64_t sync_time_ms = 0;
@@ -565,6 +566,13 @@ static void *run(hashpipe_thread_args_t * args)
             fprintf(stderr, "Connection error: can't allocate redis context\n");
             use_redis = 0;
         }
+    }
+    // XXX code is inconsistent wrt "use_redis". Either respect it or raise error
+
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        redisCommand(c, "HMSET corr:catcher cwd %s", cwd);
+    } else {
+        fprintf(stderr, "Failed to find catcher_cwd to set it in redis\n");
     }
 
     // Indicate via redis that we've started but not taking data
@@ -909,6 +917,13 @@ static void *run(hashpipe_thread_args_t * args)
                  #endif
 
                  file_cnt += 1;
+
+                 if (use_redis) {
+                   redisCommand(c, "RPUSH corr:files:raw %s", sum_fname);
+                   #ifndef SKIP_DIFF
+                   redisCommand(c, "RPUSH corr:files:raw %s", diff_fname);
+                   #endif
+                 }
 
                  // add file to M&C
                  /* strcpy(hdf5_mc_fname, hdf5_sum_fname); */

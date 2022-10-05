@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import argparse
 from paper_gpu.file_conversion import make_uvh5_file
 
@@ -19,4 +20,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    make_uvh5_file(args.output_file, args.meta_file, args.input_file)
+    if not os.path.exists(args.output_file):
+        make_uvh5_file(args.output_file, args.meta_file, args.input_file)
