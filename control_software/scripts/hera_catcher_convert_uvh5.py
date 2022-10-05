@@ -17,7 +17,8 @@ TEMPLATE = re.compile(r'zen\.(\d+)\.(\d+)\.(sum|diff)\.dat')
 RAW_FILE_KEY = 'corr:files:raw'
 PURG_FILE_KEY = 'corr:files:purgatory'
 CONV_FILE_KEY = 'corr:files:converted'
-CPU_AFFINITY = list(range(6))  # the rest are reserved for the catcher
+#CPU_AFFINITY = list(range(6))  # the rest are reserved for the catcher
+CPU_AFFINITY = [2, 3, 4, 5]
 
 def match_up_filenames(f, cwd=None):
     path, f_in = os.path.split(f)
@@ -66,14 +67,14 @@ def process_next(f, cwd, hostname):
                 session.commit()
             result = session.get_rtp_launch_record(obs_id)
             if len(result) == 0:
-                print(f'Inserting {obs_id} for file {f} in RTP')
+                print(f'Inserting {obs_id} for file {f_out} in RTP')
                 session.add_rtp_launch_record(obs_id, int_jd, info['tag'],
                                               os.path.split(f_out)[-1], prefix)
             else:
                 t0 = Time.now()
                 session.update_rtp_launch_record(obs_id, t0)
                 session.commit()
-    r.rpush(CONV_FILE_KEY, f)  # document we finished it
+    r.rpush(CONV_FILE_KEY, os.path.relpath(f_out, cwd))  # document we finished it
     r.hdel(PURG_FILE_KEY, f)
     print(f'Finished')
 
@@ -96,7 +97,7 @@ if __name__ == '__main__':
     qlen = r.llen(RAW_FILE_KEY)
     print(f'Starting conversion. Queue length={qlen}. N workers={len(CPU_AFFINITY)}')
     children = {}
-    nworkers = len(CPU_AFFINITY)
+    nworkers = len(CPU_AFFINITY) * 2
     try:
         while True:
             qlen = r.llen(RAW_FILE_KEY)
@@ -130,4 +131,3 @@ if __name__ == '__main__':
             if os.path.exists(f_out):
                 print(f'Removing {f_out}')
                 os.remove(f_out)
-        sys.exit(0)

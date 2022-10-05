@@ -345,3 +345,29 @@ def make_uvh5_file(filename, metadata_file, data_file):
 
     # we're done!
     return metadata
+
+def check_file(filename):
+    '''Makes sure a converted file and has expected data/flag/nsample arrays 
+    with the right shapes and types.
+
+    Arguments:
+        filename: full path to .uvh5 file to check.
+    Returns:
+        None (but will error if something is found to be wrong with the file).
+    '''
+    # check that f['/Data'] has three keys
+    f = h5py.File(filename, 'r')
+    assert len(f['/Data']) == 3
+
+    # check that arrays are the right shape
+    expected_shape = (f['/Header']['Nblts'][()], 
+                      f['/Header']['Nfreqs'][()], 
+                      f['/Header']['Npols'][()])
+    assert f['/Data']['visdata'].shape == expected_shape
+    assert f['/Data']['flags'].shape == expected_shape
+    assert f['/Data']['nsamples'].shape == expected_shape
+
+    # check that the arrays are the right type
+    assert f['/Data']['visdata'].dtype == [('r', '<i4'), ('i', '<i4')]
+    assert f['/Data']['flags'].dtype == 'bool'
+    assert f['/Data']['nsamples'].dtype == '<f4'
