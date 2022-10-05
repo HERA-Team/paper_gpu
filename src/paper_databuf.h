@@ -316,7 +316,7 @@ typedef struct hera_bda_databuf{
 
 #define CATCHER_PORT            10000
 #define OUTPUT_BYTES_PER_PACKET (4096)
-#define CATCHER_N_BLOCKS        8
+#define CATCHER_N_BLOCKS        16
 #define XENG_CHAN_SUM           4
 #define CATCHER_CHAN_SUM        1
 #define VIS_MATRIX_ENTRIES (N_CHAN_TOTAL/XENG_CHAN_SUM * (N_INPUTS * ((N_INPUTS>>1) + 1)))
@@ -363,7 +363,7 @@ typedef struct hera_catcher_input_databuf {
  * Structures and parameters
  */
 
-#define BASELINES_PER_BLOCK     2048 //8192
+#define BASELINES_PER_BLOCK     4096 //8192
 #define CATCHER_CHAN_SUM_BDA     4
 #define CHAN_PER_CATCHER_PKT   (OUTPUT_BYTES_PER_PACKET/(N_STOKES * 8L))                    // 128
 #define PACKETS_PER_BASELINE   (N_CHAN_TOTAL/CHAN_PER_CATCHER_PKT)                          //  48

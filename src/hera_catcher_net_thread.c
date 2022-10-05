@@ -156,7 +156,8 @@ static uint32_t set_block_filled(hera_catcher_bda_input_databuf_t *db, block_inf
   hputu4(st_p->buf, "NETBKOUT", block_i);
   hputu4(st_p->buf, "MISSXENG", block_missed_xengs);
   if(block_missed_mod_cnt){
-    fprintf(stderr, "Expected %lu packets, Got %lu\n", 
+    fprintf(stderr, "BCNT %d: Expected %lu packets, Got %lu\n", 
+	    binfo->bcnt_start,
             PACKETS_PER_BLOCK, 
             binfo->block_packet_counter[block_i]);
     // Print stats per-xeng
