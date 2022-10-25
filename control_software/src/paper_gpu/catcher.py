@@ -261,6 +261,7 @@ def set_corr_to_hera_map(nants_data, nants, redishost=DEFAULT_REDISHOST):
     r : redis.Redis object
         The redis instance to fetch data from.
     nants_data : int
+        No longer used, kept in function signature for backwards compatibility.
         The number of antennas reporting data. This is the maximum range of
         antenna numbers in the correlator input mapping.
     nants : int
@@ -275,7 +276,7 @@ def set_corr_to_hera_map(nants_data, nants, redishost=DEFAULT_REDISHOST):
         corresponds to correlator input `i`.
     """
     r = redis.Redis(redishost)
-    out_map = np.arange(nants, nants + nants_data)  # use default values outside the range of real antennas
+    out_map = np.arange(nants, nants * 2)  # use default values outside the range of real antennas
 
     # A dictionary with keys which are antenna numbers
     # of the for {<ant> :{<pol>: {'host':SNAPHOSTNAME, 'channel':INTEGER}}}
