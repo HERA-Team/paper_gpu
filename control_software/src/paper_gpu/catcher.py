@@ -220,7 +220,7 @@ def start_observing(tag, ms_per_file, nfiles,
         logger.warn('No redishost provided. NOT setting redis keys.')
 
     # Populate redis with the necessary metadata
-    set_corr_to_hera_map(nants_data=nants_data, nants=nants, redishost=redishost)
+    set_corr_to_hera_map(redishost=redishost)
     set_integration_bins(bda_config, redishost, catcher_host=catcher_host)
 
     #Configure runtime parameters
@@ -251,22 +251,15 @@ def stop_observing(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOS
     rdb = redis.Redis(redishost, decode_responses=True)
     rdb.publish("hashpipe:///set", 'INTSTAT=stop')
 
-def set_corr_to_hera_map(nants_data, nants, redishost=DEFAULT_REDISHOST):
+def set_corr_to_hera_map(redishost=DEFAULT_REDISHOST):
     """
     Return the correlator map. Reads corr:map and snap_configuration from redis,
     and sets corr:corr_to_hera_map.
 
     Parameters
     ----------
-    r : redis.Redis object
-        The redis instance to fetch data from.
-    nants_data : int
-        No longer used, kept in function signature for backwards compatibility.
-        The number of antennas reporting data. This is the maximum range of
-        antenna numbers in the correlator input mapping.
-    nants : int
-        The total number of antennas in the array. This is the maximum number of
-        antennas in HERA.
+    redishost : str
+        The hostname of the redis server.
 
     Returns
     -------
@@ -276,12 +269,14 @@ def set_corr_to_hera_map(nants_data, nants, redishost=DEFAULT_REDISHOST):
         corresponds to correlator input `i`.
     """
     r = redis.Redis(redishost)
-    out_map = np.arange(nants, nants * 2)  # use default values outside the range of real antennas
 
     # A dictionary with keys which are antenna numbers
     # of the for {<ant> :{<pol>: {'host':SNAPHOSTNAME, 'channel':INTEGER}}}
     ant_to_snap = json.loads(r.hget("corr:map", "ant_to_snap"))
     config = yaml.safe_load(r.hget("snap_configuration", "config"))
+
+    # key is correlator index, value is antenna number
+    index_to_ant_map = {}
 
     for ant, pol in ant_to_snap.items():
         hera_ant_number = int(ant)
@@ -296,8 +291,13 @@ def set_corr_to_hera_map(nants_data, nants, redishost=DEFAULT_REDISHOST):
             logger.debug("Couldn't find antenna indices for %s" % host)
             continue
         corr_idx = json.loads(snap_ant_chans)[chan//2] #Indexes from 0-3 (ignores pol)
-        out_map[corr_idx] = hera_ant_number
+        index_to_ant_map[corr_idx] = hera_ant_number
         logger.debug("HERA antenna %d = corr input %d" % (hera_ant_number, corr_idx))
+
+    max_corr_index = max(list(index_to_ant_map.keys()))
+    out_map = np.full((max_corr_index + 1), -1)
+    for corr_index, hera_ant_number in index_to_ant_map.items():
+        out_map[corr_index] = hera_ant_number
 
     # save into redis
     # we save as one long string, with newlines to differentiate
