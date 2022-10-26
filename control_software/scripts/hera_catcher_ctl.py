@@ -31,5 +31,5 @@ if args.action == 'start':
     catcher.set_xeng_output_redis_keys(prms['trig_mcnt'],
                                        prms['acclen'],
                                        redishost=args.redishost)
-    catcher.start_observing(args.tag, prms['ms_per_file'], prms['nfiles'],
+    catcher.start_observing(args.tag, prms['ms_per_file'],
                             redishost=args.redishost)
