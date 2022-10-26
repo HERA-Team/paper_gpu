@@ -55,14 +55,15 @@ def wait_for_catcher_boot(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATC
                 time.sleep(2)
 
 
-def clear_redis_keys(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
+def clear_redis_keys(halt=False, redishost=DEFAULT_REDISHOST,
+                     catcher_host=DEFAULT_CATCHER_HOST):
     '''
     '''
     r = redis.Redis(redishost, decode_responses=True)
     # Reset various statistics counters
     logger.info('Resetting Catcher redis keys')
     chan = 'hashpipe://%s/%d/set' % (catcher_host, 0)
-    r.publish(chan, 'NFILES=0')
+    r.publish(chan,f'HALTOBS={int(halt)}')
     r.publish(chan, 'TRIGGER=0')
     r.publish(chan, 'MSPERFIL=0')
     for v in ['NETWAT', 'NETREC', 'NETPRC']:
@@ -79,16 +80,15 @@ def release_nethold(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HO
     r.publish(chan, 'CNETHOLD=0')
 
 
-def set_observation(obs_len_hr, feng_sync_time_ms, start_delay=60,
+def set_observation(feng_sync_time_ms, start_delay=60,
                     acclen=DEFAULT_ACCLEN, xpipes=2, sample_rate=500e6,
                     nchan=8192, mcnt_xgpu_block_size=2048, slices=2,
                     redishost=DEFAULT_REDISHOST):
     '''
-    Set acc_len, start_time, and obs_len on redis.
+    Set acc_len and start_time on redis.
 
     Parameters
     ----------
-      obs_len_hr: Observation length in hours
       feng_sync_time_ms: Synchronization time in UTC milliseconds
       start_delay: delay in seconds of when to start. Default 60
       acclen: accumulated spectra per integration. Default 147456 // 4
@@ -101,10 +101,8 @@ def set_observation(obs_len_hr, feng_sync_time_ms, start_delay=60,
     None
     '''
     assert acclen % mcnt_xgpu_block_size == 0, 'acc_len must be divisible by xgpu block size'
-    obs_len = int(obs_len_hr * 3600) # convert hours to seconds
     file_duration_ms = int(2 * 2 * (acclen * 2) * xpipes * 2 * nchan / sample_rate * 1000)
     file_duration_s = file_duration_ms / 1000
-    nfiles = int(obs_len / file_duration_s)
     t = Time.now() + TimeDelta(start_delay * units.second)
     lst_time = LSTScheduler(t, file_duration_s)
     start_time = int(np.round(lst_time[0].unix)) # s
@@ -119,7 +117,6 @@ def set_observation(obs_len_hr, feng_sync_time_ms, start_delay=60,
     logger.debug(f'On redishost={redishost} setting:')
     logger.debug(f'    corr:acc_len = {acclen}')
     logger.debug(f'    corr:start_time = {start_time}')
-    logger.debug(f'    corr:obs_len = {obs_len}')
     logger.debug(f'    corr:trig_mcnt = {trig_mcnt}')
     logger.debug(f'    corr:trig_time = {trig_time}')
     logger.debug(f'    corr:int_time = {int_time}')
@@ -131,7 +128,6 @@ def set_observation(obs_len_hr, feng_sync_time_ms, start_delay=60,
         r = redis.Redis(redishost, decode_responses=True)
         r.set('corr:acc_len', str(acclen))
         r.set('corr:start_time', str(start_time))
-        r.set('corr:obs_len', str(obs_len))
         r.set('corr:trig_mcnt', str(trig_mcnt))
         r.set('corr:trig_time', str(trig_time))
         r.set('corr:int_time', str(int_time))
@@ -139,7 +135,7 @@ def set_observation(obs_len_hr, feng_sync_time_ms, start_delay=60,
         logger.warn('No redishost provided. NOT setting redis keys.')
 
     return {'trig_mcnt': trig_mcnt, 'acclen': acclen,
-            'ms_per_file': file_duration_ms, 'nfiles': nfiles,
+            'ms_per_file': file_duration_ms,
             'feng_sync_time_ms': feng_sync_time_ms}
 
 def set_xeng_output_redis_keys(trig_mcnt, acclen, redishost=DEFAULT_REDISHOST,
@@ -189,7 +185,7 @@ def set_xeng_output_redis_keys(trig_mcnt, acclen, redishost=DEFAULT_REDISHOST,
                     rdb.publish('hashpipe://%s/0/set' % host, msg)
                     rdb.publish('hashpipe://%s/1/set' % host, msg)
 
-def start_observing(tag, ms_per_file, nfiles,
+def start_observing(tag, ms_per_file,
                     redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST,
                     nants_data=192, nants=352,
                     xpipes=2):
@@ -201,7 +197,6 @@ def start_observing(tag, ms_per_file, nfiles,
     ----------
         tag:
         ms_per_file:
-        nfiles:
         redishost:
         catcher_host:
         nants_data:
@@ -226,7 +221,6 @@ def start_observing(tag, ms_per_file, nfiles,
     #Configure runtime parameters
     catcher_dict = {
       'MSPERFIL' : ms_per_file,
-      'NFILES'   : nfiles,
       'SYNCTIME' : r['corr:feng_sync_time'],
       'INTTIME'  : r['corr:acc_len'],
       'TAG'      : tag,
@@ -247,7 +241,7 @@ def start_observing(tag, ms_per_file, nfiles,
 def stop_observing(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
     '''
     '''
-    clear_redis_keys(redishost, catcher_host=catcher_host)
+    clear_redis_keys(halt=True, redishost=redishost, catcher_host=catcher_host)
     rdb = redis.Redis(redishost, decode_responses=True)
     rdb.publish("hashpipe:///set", 'INTSTAT=stop')
 

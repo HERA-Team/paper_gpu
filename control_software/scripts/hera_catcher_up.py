@@ -49,5 +49,5 @@ cpu_mask = '0x0004'
 procs = run_on_hosts([args.host], ['taskset', cpu_mask, 'hashpipe_redis_gateway.rb', '-g', args.host, '-i', '0'], wait=True)
 
 catcher.wait_for_catcher_boot(args.redishost)
-catcher.clear_redis_keys(args.redishost)
+catcher.clear_redis_keys(redishost=args.redishost)
 catcher.release_nethold(args.redishost)

@@ -534,9 +534,9 @@ static void *run(hashpipe_thread_args_t * args)
 
     // Variables for data collection parameters
     uint32_t acc_len;
-    uint32_t nfiles = 1;
     uint32_t file_cnt = 0;
     uint32_t trigger = 0;
+    uint32_t haltobs = 0;
     char tag[TAG_BYTES];
     uint64_t baseline_dist[N_BDABUF_BINS];
     uint64_t Nants = 0;
@@ -547,6 +547,7 @@ static void *run(hashpipe_thread_args_t * args)
     hashpipe_status_lock_safe(&st);
     hputi8(st.buf, "DISKMCNT", 0);
     hputu4(st.buf, "TRIGGER", trigger);
+    hputu4(st.buf, "HALTOBS", haltobs);
     hputu4(st.buf, "NDONEFIL", file_cnt);
     hashpipe_status_unlock_safe(&st);
 
@@ -719,8 +720,6 @@ static void *run(hashpipe_thread_args_t * args)
         // Get the integration time reported by the correlator
         hgetu4(st.buf, "INTTIME", &acc_len);
 
-        // Get the number of files to write
-        hgetu4(st.buf, "NFILES", &nfiles);
         // Update the status with how many files we've already written
         hputu4(st.buf, "NDONEFIL", file_cnt);
 
@@ -735,10 +734,11 @@ static void *run(hashpipe_thread_args_t * args)
         // start marking blocks as done and idling until a new
         // trigger is received
         if (trigger) {
-          fprintf(stdout, "Catcher got a new trigger and will write %d files\n", nfiles);
+          fprintf(stdout, "Catcher got a new trigger and will write files\n");
           file_cnt = 0;
           hashpipe_status_lock_safe(&st);
           hputu4(st.buf, "TRIGGER", 0);
+          hputu4(st.buf, "HALTOBS", 0);
           hputu4(st.buf, "NDONEFIL", file_cnt);
 
           // Get baseline distribution from sharedmem -- this has to be done here
@@ -773,7 +773,7 @@ static void *run(hashpipe_thread_args_t * args)
               redisCommand(c, "EXPIRE corr:is_taking_data 60");
           }
 
-        } else if (file_cnt >= nfiles || idle) {
+        } else if (haltobs || idle) {
           // If we're transitioning to idle state
           // Indicate via redis that we're no longer taking data
           if (!idle) {
@@ -932,14 +932,17 @@ static void *run(hashpipe_thread_args_t * args)
                  /*   fprintf(stderr, "Error launching M&C thread\n"); */
                  /* } */
 
+
                  hashpipe_status_lock_safe(&st);
+                 // check if we have been ordered to halt
+                 hgetu4(st.buf, "HALTOBS", &haltobs);
                  hputr4(st.buf, "FILESEC", file_duration);
                  hputi8(st.buf, "NDONEFIL", file_cnt);
                  hashpipe_status_unlock_safe(&st);
 
                  // If this is the last file, mark this block done and get out of the loop
-                 if (file_cnt >= nfiles) {
-                     fprintf(stdout, "Catcher has written %d file and is going to sleep\n", file_cnt);
+                 if (haltobs) {
+                     fprintf(stdout, "Catcher has written %d files and is going to sleep\n", file_cnt);
                      curr_file_bcnt = -1; //So the next trigger will start a new file
                      break;
                  }
