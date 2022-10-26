@@ -47,7 +47,7 @@
 // 0xaaaaaaaa value, which is negative for signed ints.
 #define INVALID_INDICATOR (0xaa)
 
-#define MAXSTR 600000
+#define MAXSTR 6000000
 
 static uint64_t bcnts_per_file;
 
