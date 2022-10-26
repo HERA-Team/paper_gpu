@@ -4,7 +4,6 @@ import os
 import redis
 import time
 import argparse
-import subprocess
 from paper_gpu import bda
 from paper_gpu.utils import run_on_hosts
 
