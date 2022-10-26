@@ -765,6 +765,8 @@ static void *run(hashpipe_thread_args_t * args)
           ant_1_array          =    (int *)realloc(ant_1_array,          bcnts_per_file * sizeof(int));
 
           idle = 0;
+	  haltobs = 0;
+
           if (use_redis) {
               // Create the "corr:is_taking_data" hash. This will be set to
               // state=False when data taking is complete. Or if this pipeline
