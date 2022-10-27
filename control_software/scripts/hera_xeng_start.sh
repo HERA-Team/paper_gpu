@@ -16,4 +16,4 @@ xtor_up.py --runtweak --redislog px{1..16} &>> $LOGFILE
 hera_catcher_up.py --redislog &>> $LOGFILE
 
 # XXX add arguments to set_observation
-hera_catcher_ctl.py start --obslen=10 --tag $TAG &>> $LOGFILE
+hera_catcher_ctl.py start --tag $TAG &>> $LOGFILE
