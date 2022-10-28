@@ -55,7 +55,8 @@ def wait_for_catcher_boot(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATC
                 time.sleep(2)
 
 
-def clear_redis_keys(halt=False, redishost=DEFAULT_REDISHOST,
+def clear_redis_keys(halt=False,
+                     redishost=DEFAULT_REDISHOST,
                      catcher_host=DEFAULT_CATCHER_HOST):
     '''
     '''
@@ -236,14 +237,25 @@ def start_observing(tag, ms_per_file,
     time.sleep(0.1) # trigger after parameters have had time to write
     logger.debug(f'   ', chan, 'TRIGGER=1')
     if redishost is not None:
+        # clear end-of-day flag for this next observing session
+        r.hset('corr:files', 'ENDOFDAY', 0)
         r.publish(chan, "TRIGGER=1")
 
-def stop_observing(redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
+def stop_observing(endofday=False, redishost=DEFAULT_REDISHOST, catcher_host=DEFAULT_CATCHER_HOST):
     '''
     '''
     clear_redis_keys(halt=True, redishost=redishost, catcher_host=catcher_host)
     rdb = redis.Redis(redishost, decode_responses=True)
     rdb.publish("hashpipe:///set", 'INTSTAT=stop')
+    if endofday:
+        # wait for correlator to close down file writing
+        still_taking_data = True
+        while still_taking_data:
+            time.sleep(1)
+            still_taking_data = (rdb.hmget('corr:is_taking_data', 'state')[0] == None)
+        # we can now declare observing closed for this day
+        rdb.hset('corr:files', 'ENDOFDAY', 1)
+
 
 def set_corr_to_hera_map(redishost=DEFAULT_REDISHOST):
     """

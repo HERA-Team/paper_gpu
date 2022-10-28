@@ -714,7 +714,7 @@ static void *run(hashpipe_thread_args_t * args)
         elapsed_t_ns = 0.0;
 
         // Get time that F-engines were last sync'd
-	hashpipe_status_lock_safe(&st);
+        hashpipe_status_lock_safe(&st);
         hgetu8(st.buf, "SYNCTIME", &sync_time_ms);
 
         // Get the integration time reported by the correlator
@@ -765,7 +765,7 @@ static void *run(hashpipe_thread_args_t * args)
           ant_1_array          =    (int *)realloc(ant_1_array,          bcnts_per_file * sizeof(int));
 
           idle = 0;
-	  haltobs = 0;
+          haltobs = 0;
 
           if (use_redis) {
               // Create the "corr:is_taking_data" hash. This will be set to
@@ -794,7 +794,7 @@ static void *run(hashpipe_thread_args_t * args)
           }
           //printf("disk_thread: curblock_in=%d -> %d\n", curblock_in, (curblock_in + 1) % CATCHER_N_BLOCKS);
           curblock_in = (curblock_in + 1) % CATCHER_N_BLOCKS;
-          continue;
+          continue;  // jump to top of runthreads while loop
         }
 
         // If we make it to here we're not idle any more.
@@ -867,9 +867,9 @@ static void *run(hashpipe_thread_args_t * args)
              // This block might start at a new file. Otherwise
              // We need a new file at the next bcnts_per_file boundary.
              if (strt_bcnt % bcnts_per_file == 0){
-	       break_bcnt = strt_bcnt;
+               break_bcnt = strt_bcnt;
              } else {
-	       break_bcnt = ((strt_bcnt / bcnts_per_file) + 1) * bcnts_per_file;
+               break_bcnt = ((strt_bcnt / bcnts_per_file) + 1) * bcnts_per_file;
              }
 
              // If there is an open file, copy the relevant part of the block
@@ -939,14 +939,14 @@ static void *run(hashpipe_thread_args_t * args)
                  // check if we have been ordered to halt
                  hgetu4(st.buf, "HALTOBS", &haltobs);
                  hputr4(st.buf, "FILESEC", file_duration);
-                 hputi8(st.buf, "NDONEFIL", file_cnt);
+                 hputu4(st.buf, "NDONEFIL", file_cnt);
                  hashpipe_status_unlock_safe(&st);
 
                  // If this is the last file, mark this block done and get out of the loop
                  if (haltobs) {
-                     fprintf(stdout, "Catcher has written %d files and is going to sleep\n", file_cnt);
-                     curr_file_bcnt = -1; //So the next trigger will start a new file
-                     break;
+                    fprintf(stdout, "Catcher has written %d files and is going to sleep\n", file_cnt);
+                    curr_file_bcnt = -1; //So the next trigger will start a new file
+                    break;  // break out of bcnt for loop
                  }
              }
 
@@ -1001,10 +1001,10 @@ static void *run(hashpipe_thread_args_t * args)
                 file_offset = break_bcnt - curr_file_bcnt;
 
                 for(b=0; b< nbls; b++){
-		  ant_0_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_0[block_offset+b]];
-		  ant_1_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_1[block_offset+b]];
-		  time_array_buf[file_offset+b] = compute_jd_from_mcnt(header.mcnt[block_offset+b], sync_time_ms,
-								       integration_time_buf[file_offset+b]);
+                  ant_0_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_0[block_offset+b]];
+                  ant_1_array[file_offset+b]    = corr_to_hera_map[header.ant_pair_1[block_offset+b]];
+                  time_array_buf[file_offset+b] = compute_jd_from_mcnt(header.mcnt[block_offset+b], sync_time_ms,
+                                                                       integration_time_buf[file_offset+b]);
                 }
 
                 clock_gettime(CLOCK_MONOTONIC, &w_start);
@@ -1023,7 +1023,7 @@ static void *run(hashpipe_thread_args_t * args)
                 max_w_ns = MAX(w_ns, max_w_ns);
              }
           }
-        }
+        } // end of bcnt for loop
 
         clock_gettime(CLOCK_MONOTONIC, &finish);
 
@@ -1064,7 +1064,7 @@ static void *run(hashpipe_thread_args_t * args)
 
         /* Check for cancel */
         pthread_testcancel();
-    }
+    } // end of runthreads while loop
 
     // Thread success!
     return NULL;

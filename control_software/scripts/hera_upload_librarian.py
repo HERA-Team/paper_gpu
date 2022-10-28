@@ -6,7 +6,6 @@ import os
 import subprocess
 import logging
 import psutil
-import signal
 from hera_librarian import LibrarianClient
 
 logger = logging.getLogger(__file__)
@@ -16,6 +15,7 @@ DATA_DIR = '/mnt/sn1'
 CONV_FILE_KEY = 'corr:files:converted'
 PURG_FILE_KEY = 'corr:files:lib_purgatory'
 LIB_FILE_KEY = 'corr:files:uploaded'
+JD_KEY = 'corr:files:jds'
 CONN_NAME = 'local-rtp'
 CPU_AFFINITY = [3, 4, 5, 6]
 
@@ -65,7 +65,15 @@ if __name__ == '__main__':
                 thd = mp.Process(target=process_next, args=(f,))
                 thd.start()
                 children[f] = thd
+            elif qlen == 0 and len(children) == 0:
+                # caught up and queue is empty, so check if we finished any days
+                jds = r.hgetall(JD_KEY)
+                for jd, val in jds.items():
+                    if int(val) == 1:
+                        r.hset(JD_KEY, jd, int(val) + 1)
+                time.sleep(10)
             else:
+                # we are still working and should wait for jobs to complete
                 time.sleep(2)
     except Exception as e:
         print(f'Closing down {len(children)} threads')

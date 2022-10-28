@@ -4,7 +4,6 @@
 import re
 import os
 import psutil
-import signal
 import numpy as np
 from paper_gpu.file_conversion import make_uvh5_file
 from astropy.time import Time
@@ -17,6 +16,7 @@ TEMPLATE = re.compile(r'zen\.(\d+)\.(\d+)\.(sum|diff)\.dat')
 RAW_FILE_KEY = 'corr:files:raw'
 PURG_FILE_KEY = 'corr:files:purgatory'
 CONV_FILE_KEY = 'corr:files:converted'
+JD_KEY = 'corr:files:jds'
 #CPU_AFFINITY = list(range(6))  # the rest are reserved for the catcher
 CPU_AFFINITY = [2, 3, 4, 5]
 
@@ -70,6 +70,7 @@ def process_next(f, cwd, hostname):
                 print(f'Inserting {obs_id} for file {f_out} in RTP')
                 session.add_rtp_launch_record(obs_id, int_jd, info['tag'],
                                               os.path.split(f_out)[-1], prefix)
+                r.hset(JD_KEY, int_jd, 0)  # put this jd on a list for later rtp launch
             else:
                 t0 = Time.now()
                 session.update_rtp_launch_record(obs_id, t0)
@@ -111,10 +112,24 @@ if __name__ == '__main__':
                 thd = mp.Process(target=process_next, args=(f, cwd, hostname))
                 thd.start()
                 children[f] = thd
+            elif qlen == 0 and len(children) == 0:
+                # caught up and queue is empty so check if we are done for the day
+                endofday = int(r.hget('corr:files', 'ENDOFDAY'))
+                if endofday:
+                    # correlator has shut down and we are done, so tag out JDs
+                    # that we converted files for.
+                    jds = r.hgetall(JD_KEY)
+                    for jd, val in jds.items():
+                        if int(val) == 0:
+                            r.hset(JD_KEY, jd, int(val) + 1)
+                    # ENDOFDAY can now be set back to 0 whenever
+                    # subsequent steps will check for jds at stage 1 or beyond
+                time.sleep(10)
             else:
+                # we are still working and should wait for jobs to complete
                 time.sleep(2)
     except Exception as e:
-        print(f'Closing down {len(children)} threads')
+        print(f'Closing down {len(children)} threads')h
         for f, thd in children.items():
             thd.terminate()
         for thd in children.values():
