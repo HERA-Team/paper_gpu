@@ -129,7 +129,7 @@ if __name__ == '__main__':
                 # we are still working and should wait for jobs to complete
                 time.sleep(2)
     except Exception as e:
-        print(f'Closing down {len(children)} threads')h
+        print(f'Closing down {len(children)} threads')
         for f, thd in children.items():
             thd.terminate()
         for thd in children.values():

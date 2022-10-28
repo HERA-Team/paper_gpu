@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser(
     description='Turn HERA correlator on/off at next LST bin boundary',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('action',type=str,
-                    help='Action: "start"|"stop" the correlator.')
+                    help='Action: "start"|"stop"|"endofday" the correlator.')
 parser.add_argument('-r', dest='redishost', type=str, default='redishost',
                     help='Hostname of redis server')
 parser.add_argument('--start_delay', type=float, default=30,
@@ -22,8 +22,9 @@ assert args.tag in catcher.TAGS
 
 if args.action == 'stop':
     catcher.stop_observing(redishost=args.redishost)
-
-if args.action == 'start':
+elif args.action == 'endofday':
+    catcher.stop_observing(endofday=True, redishost=args.redishost)
+elif args.action == 'start':
     rdb = redis.Redis(args.redishost)
     feng_sync_time_ms = int(rdb['corr:feng_sync_time'])
     prms = catcher.set_observation(feng_sync_time_ms, start_delay=args.start_delay,
