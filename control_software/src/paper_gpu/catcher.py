@@ -249,10 +249,10 @@ def stop_observing(endofday=False, redishost=DEFAULT_REDISHOST, catcher_host=DEF
     rdb.publish("hashpipe:///set", 'INTSTAT=stop')
     if endofday:
         # wait for correlator to close down file writing
-        still_taking_data = True
-        while still_taking_data:
+        done_taking_data = False
+        while not done_taking_data:
             time.sleep(1)
-            still_taking_data = (rdb.hmget('corr:is_taking_data', 'state')[0] == None)
+            done_taking_data = (rdb.hmget('corr:is_taking_data', 'state')[0] == None)
         # we can now declare observing closed for this day
         rdb.hset('corr:files', 'ENDOFDAY', 1)
 

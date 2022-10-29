@@ -16,6 +16,7 @@ TEMPLATE = re.compile(r'zen\.(\d+)\.(\d+)\.(sum|diff)\.dat')
 RAW_FILE_KEY = 'corr:files:raw'
 PURG_FILE_KEY = 'corr:files:purgatory'
 CONV_FILE_KEY = 'corr:files:converted'
+FAILED_FILE_KEY = 'corr:files:failed'
 JD_KEY = 'corr:files:jds'
 #CPU_AFFINITY = list(range(6))  # the rest are reserved for the catcher
 CPU_AFFINITY = [2, 3, 4, 5]
@@ -37,6 +38,34 @@ def get_cwd_from_redis(r, default='/data'):
         return default
     else:
         return cwd
+
+def return_purgatory_files(r):
+    purgfiles = r.hgetall(PURG_FILE_KEY)
+    for f in purgfiles:
+        print(f'Returning {f}')
+        r.rpush(RAW_FILE_KEY, f)
+        r.hdel(PURG_FILE_KEY, f)
+        (f_in, f_meta, f_out), is_diff = match_up_filenames(f, cwd)
+        print(f'Remove {f_out}?')
+        if os.path.exists(f_out):
+            print(f'Removing {f_out}')
+            os.remove(f_out)
+
+def filter_done(f, thd):
+    is_alive = thd.is_alive()
+    if not is_alive:
+        purgfiles = r.hgetall(PURG_FILE_KEY)
+        if f in purgfiles:
+            # failure to remove from purgatory indicates failed conversion
+            # so clean up and add to failed queue
+            r.rpush(FAILED_FILE_KEY, f)
+            r.hdel(PURG_FILE_KEY, f)
+            (f_in, f_meta, f_out), is_diff = match_up_filenames(f, cwd)
+            print(f'Remove {f_out}?')
+            if os.path.exists(f_out):
+                print(f'Removing {f_out}')
+                os.remove(f_out)
+    return is_alive
 
 def process_next(f, cwd, hostname):
     p = psutil.Process()
@@ -102,7 +131,8 @@ if __name__ == '__main__':
     try:
         while True:
             qlen = r.llen(RAW_FILE_KEY)
-            children = {f: thd for f, thd in children.items() if thd.is_alive()}
+            children = {f: thd for f, thd in children.items()
+                        if filter_done(f, thd)}
             print(f'Queue length={qlen}, N workers={len(children)}/{nworkers}')
             if qlen > 0 and len(children) < nworkers:
                 # once we get a key, we commit to finish it or return it; no dropping
@@ -136,13 +166,4 @@ if __name__ == '__main__':
             thd.join()
     finally:
         print('Cleanup')
-        purgfiles = r.hgetall(PURG_FILE_KEY)
-        for f in purgfiles:
-            print(f'Returning {f}')
-            r.rpush(RAW_FILE_KEY, f)
-            r.hdel(PURG_FILE_KEY, f)
-            f_in, f_meta, f_out = match_up_filenames(f, cwd)
-            print(f'Remove {f_out}?')
-            if os.path.exists(f_out):
-                print(f'Removing {f_out}')
-                os.remove(f_out)
+        return_purgatory_files(r)

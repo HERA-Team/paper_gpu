@@ -17,7 +17,7 @@ parser.add_argument('--tag', dest='tag', type=str, default='delete',
                     help='A descriptive tag to go into data files')
 args = parser.parse_args()
 
-assert args.action in ['start', 'stop'], 'Available actions are "start" and "stop"'
+assert args.action in ['start', 'stop', 'endofday'], 'Available actions are "start", "stop", and "endofday"'
 assert args.tag in catcher.TAGS
 
 if args.action == 'stop':
