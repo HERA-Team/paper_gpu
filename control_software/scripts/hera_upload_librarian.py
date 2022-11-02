@@ -14,10 +14,23 @@ REDISHOST = 'redishost'
 DATA_DIR = '/mnt/sn1'
 CONV_FILE_KEY = 'corr:files:converted'
 PURG_FILE_KEY = 'corr:files:lib_purgatory'
+FAILED_FILE_KEY = 'corr:files:lib_failed'
 LIB_FILE_KEY = 'corr:files:uploaded'
 JD_KEY = 'corr:files:jds'
 CONN_NAME = 'local-rtp'
 CPU_AFFINITY = [3, 4, 5, 6]
+
+def filter_done(f, thd):
+    is_alive = thd.is_alive()
+    if not is_alive:
+        purgfiles = r.hgetall(PURG_FILE_KEY)
+        if f in purgfiles:
+            # failure to remove from purgatory indicates failed upload
+            # so clean up and add to failed queue
+            r.rpush(FAILED_FILE_KEY, f)
+            r.hdel(PURG_FILE_KEY, f)
+    return is_alive
+
 
 def process_next(f):
     p = psutil.Process()
@@ -55,7 +68,8 @@ if __name__ == '__main__':
     try:
         while True:
             qlen = r.llen(CONV_FILE_KEY)
-            children = {f: thd for f, thd in children.items() if thd.is_alive()}
+            children = {f: thd for f, thd in children.items()
+			if filter_done(f, thd)}
             print(f'Queue length={qlen}, N workers={len(children)}/{nworkers}')
             if qlen > 0 and len(children) < nworkers:
                 # once we get a key, we commit to finish it or return it; no dropping
