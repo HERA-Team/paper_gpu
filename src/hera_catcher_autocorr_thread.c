@@ -91,7 +91,7 @@ static void *run(hashpipe_thread_args_t * args)
     // Write autocorrs to redis
     if(use_redis){
       printf("Entered loop\n");
-      for (ant=0; ant<N_ANTS; ant++) {
+      for (ant=0; ant<N_ANTS_TOTAL; ant++) {
          if (db_in->block[blkin].header.ant[ant] == 1){
             for (chan=0; chan<N_CHAN_TOTAL; chan++){
               offset = hera_catcher_autocorr_databuf_idx32(ant);
