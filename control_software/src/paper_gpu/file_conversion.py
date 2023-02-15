@@ -206,7 +206,7 @@ def make_uvh5_file(filename, metadata_file, data_file):
     baseline_array = uvutils.antnums_to_baseline(
         ant_0_array, ant_1_array, nants_telescope
     )
-    nbls = len(baseline_array)
+    nbls = len(np.unique(baseline_array))
     ant_nums = np.asarray([int(name[2:]) for name in ant_names])
     antenna_diameters = 14.0 * np.ones((len(ant_names),), dtype=np.float64)
     cofa_lat_rad = cminfo["cofa_lat"] * np.pi / 180.0
