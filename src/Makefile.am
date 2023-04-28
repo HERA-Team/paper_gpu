@@ -31,6 +31,7 @@ paper_threads = paper_fake_net_thread.c          \
                 hera_gpu_bda_thread.c            \
                 hera_bda_output_thread.c         \
                 hera_null_thread.c               \
+                hera_catcher_ibvpkt_thread.c     \
                 hera_catcher_net_thread.c        \
                 hera_catcher_disk_thread.c       \
                 hera_catcher_autocorr_thread.c   \
