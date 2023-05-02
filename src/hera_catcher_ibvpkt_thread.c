@@ -144,7 +144,7 @@ static inline void initialize_block(hera_catcher_bda_input_databuf_t * db, uint6
 
 /* Get packet header */
 static inline void get_header(unsigned char *p_frame, packet_header_t *pkt_header){
-   packet_header_t *packet_header_raw = (packet_header_t *)PKT_UDP_DATA(p_frame);
+   packet_header_t *packet_header_raw = &((struct hera_ibv_xeng_pkt *)p_frame)->hdr;
    pkt_header->mcnt        = be64toh(packet_header_raw->mcnt);
    pkt_header->bcnt        = be32toh(packet_header_raw->bcnt);
    pkt_header->offset      = be32toh(packet_header_raw->offset);
