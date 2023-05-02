@@ -646,6 +646,7 @@ static void *run(hashpipe_thread_args_t * args)
 
     /* Main loop */
     int i;
+    int rc;
     uint64_t packet_count = 0;
     uint64_t wait_ns = 0; // ns for most recent wait
     uint64_t recv_ns = 0; // ns for most recent recv
@@ -689,15 +690,27 @@ static void *run(hashpipe_thread_args_t * args)
 
     while (run_threads()) {
         // Wait for input block to be filled
+        rc = hashpipe_ibvpkt_databuf_wait_filled(dbin, block_idx_in);
 
-        if(hashpipe_ibvpkt_databuf_wait_filled(dbin, block_idx_in)) {
-            hashpipe_error(thread_name, "error waiting for input block %d", block_idx_in);
-            break;
+	// Packets are not necessarily sent from the X engines continuously so
+	// it is possible to have lulls in packet reception that are long
+	// enough to cause timeouts in the "wait filled" call.  If/when this
+	// happens, we just re-loop so that the `run_threads()` check still
+	// gets called every so often during extended lulls.
+	if(rc == HASHPIPE_TIMEOUT) {
+	    // Re-loop
+            continue;
         }
 
+	// If we got a non-timeout error, bail out!
+        if(rc != HASHPIPE_OK) {
+            hashpipe_error(thread_name, "non-timeout error waiting for input block %d", block_idx_in);
+	    break;
+        }
+
+	// Got block, but check for exit request anyway
         if(!run_threads()) {
-            // We're outta here!
-            // (but first mark the block free)
+            // We're outta here! (but first mark the block free)
             hashpipe_ibvpkt_databuf_set_free(dbin, block_idx_in);
             break;
         }
