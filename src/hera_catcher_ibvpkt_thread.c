@@ -110,12 +110,16 @@ struct __attribute__ ((__packed__)) hera_ibv_xeng_pkt {
 #define PKTSOCK_NFRAMES (PKTSOCK_FRAMES_PER_BLOCK * PKTSOCK_NBLOCKS)
 #endif // 0
 
-// The fields of a block_info_t structure hold meta-data 
-// about the contents of each block
+// The fields of a block_info_t structure hold meta-data about the contents of
+// all the blocks in the output databuf.  As you can see by the
+// `CATCHER_N_BLOCKS` in the dimesions of some of the array fields, a single
+// instance of this block_info_t structure handles all the blocks of the output
+// databuf.  In fact, this thread actually has only a single block_info_t
+// structure as a static local variable in `process_packet()`.
 typedef struct {
     int initialized;
     uint32_t bcnt_start; 
-    int block_i;
+    int block_i; // ranges from 0 to CATCHER_N_BLOCKS-1
     uint64_t bcnt_log_late;
     long out_of_seq_cnt;
     long block_packet_counter[CATCHER_N_BLOCKS]; 
@@ -123,6 +127,112 @@ typedef struct {
     char flags[CATCHER_N_BLOCKS][PACKETS_PER_BLOCK];
     char baselines[CATCHER_N_BLOCKS][BASELINES_PER_BLOCK];
 } block_info_t;
+
+// There are many fields and variables related to `bcnt` (Baseline CouNT).
+// Each integration dumped by an X engine has `Nbls = Nants_data *
+// (Nants_data+1) / 2` baselines.  These baselines have a `dump_count`
+// (does that have a real name?) that ranges from 0 through Nbls-1 within a
+// given dump.  `bcnt` is a monotonically increasing counter that doesn't reset
+// between dumps, so the dumped baselines have an absolute (global) `bcnt` of
+// `dump_count * Nbls + dump_bcnt`, where dump_count counts dumps from 0.
+// `bcnt` is always(?) represented as a `uint32_t`.
+//
+// Every output databuf block has a header that contains a `bcnt` field that is
+// an array of length `BASELINES_PER_BLOCK` with each entry containing the
+// `bcnt` of the corresponding "slice" of the data portion of the databuf block.
+//
+// hera_catcher_net_thread and hera_catcher_ibvpkt_thread are blissfully
+// unaware of `Nbls`. Instead the arrange the data from incoming packets into
+// sequence of spectra for consecutive bcnts, partitioning them into
+// `BASELINES_PER_BLOCK` `bcnt`s per block.
+//
+// The various `bcnt` related fields and variables are elucidated here:
+//
+// - binfo.bcnt_start (static local in `process_packet()`)
+//   The first `bcnt` of the next output databuf block to be marked filled.
+//   * `binfo` is the singleton instance of `block_info_t` that the declared as a
+//     static local variable in `process_packet().
+//   * Initialized to the very first processed packet's `bcnt` rounded down to
+//     the previous multiple of `BASELINES_PER_BLOCK`.
+//   * Incremented by `BASELINES_PER_BLOCK` every time an output block is
+//     marked filled.
+//   * Re-initialized to the processed packet's `bcnt` rounded down to
+//     the previous multiple of `BASELINES_PER_BLOCK` when resetting due to too
+//     many out of sequence packets.
+//
+// - binfo.bcnt_log_late (static local in `process_packet()`)
+//   A `bcnt` threshold used to squelch late packet warnings at startup/reset.
+//   * Initialized to `BASELINES_PER_BLOCK`.
+//   * Re-initialized to `binfo.bcnt_start + BASELINES_PER_BLOCK` when
+//     resetting due to too many out of sequence packets.
+//
+// - first_bcnt (file static, aka file global)
+//   The first `bcnt` value of output databuf block 0.  Always a multiple of
+//   `BASELINES_PER_BLOCK`.
+//   * (Re-)initialized to 0 on the very first processed packet.
+//   * Re-initialized to the processed packets `bcnt` shifted down by (i.e.
+//     minus) `BASELINES_PER_BLOCK * binfo.block_i` (i.e. `BASELINES_PER_BLOCK`
+//     time the next data buffer output block number to be marked filled?) all
+//     rounded down to the previous multiple of `BASELINES_PER_BLOCK`.
+//   * Used in `block_for_bcnt()` to determine which output databuf block
+//     corresponds to a given `bcnt`.
+//
+// - packet_header_t.bcnt
+//   Every packet that the catcher receives from the X engines has a `bcnt`
+//   value in its header.
+//
+// - pkt_bcnt_dist (process_packet local)
+//   The "distance" from `binfo.bcnt_start` (aka `cur_bcnt`) to the processed
+//   packet's `bcnt`.
+//   * Calculated as `pkt_bcnt - cur_bcnt`.
+//   * Currently, `pkt_bcnt_dist` greater than or equal to 0 and less that 3/4
+//     the total number of baselines in the entire output databuf are accepted.
+//     [I think this the upper limit is a BUG and that it should be
+//     `3*BASELINES_PER_BLOCK`!]
+//   * For accepted packets, currently, if `pkt_bcnt_dist` is greater than or
+//     equal to half the total number of baselines in the entire output
+//     databuf [I think this limit is a BUG and that it should be
+//     `2*BASELINES_PER_BLOCK`!], then:
+//     1. The current block is marked as full
+//     2. `binfo` fields `bcnt_start` (and its alias `cur_bcnt`) and `block_i` are
+//        advanced by one block
+//     3. A new block is acquired (wait free) [but based on the `pkt_bcnt`
+//        which is many blocks out due to the limit BUG!], the block is
+//        "initialized" via `initialize_block()` with
+//        `cur_bcnt+BASELINES_PER_BLOCK
+//     4. The new `binfo.block_i` block of the "per block" `binfo` fields are
+//        set to zeros (`flags` set to ones), as is the `binfo.out_of_seq_cnt`
+//        field.
+//   * For all accepted packets:
+//     1. The payload is copied into the packet's slice in the packet's
+//        `bcnt`'s block.
+//     2. `binfo` block-baseline fields are updated if this is the first packet
+//        for this block-baseline.
+//     3. `binfo.flags` for this packet's block and offset are set to 0.
+//     4. `binfo.block_packet_counter` for the packet's block in incremented.
+//   * Unaccepted packets that are "late" (i.e. for a block already marked
+//     filled) but not too late get ignored.  [I think there might be a logic
+//     BUG that prevents any "Ignoring late packet" messages from being
+//     emitted because I don't think `cur_bcnt >= binfo.bcnt_log_late` can ever
+//     be true.]
+//   * Other unaccepted packets are either way too late or too far in the
+//     future to be useful.  Increment `binfo.out_of_seq_cnt` and if it execeds
+//     a threshold, reset:
+//     1. Re-initialize `first_bcnt`, `binfo.bcnt_start`, `binfo.block_i`
+//        [MAYBE BUG in that I don't think this actually changes or needs to be
+//        changed], `binfo.bcnt_log_late`.
+//     2. Re-initialize the two "working blocks" vis `initialize_block()`.
+//     3. Re-initialize `binfo` counters and stats [BUG: `flags` are
+//        initialized to 0 rather than 1!].
+//
+// - pkt_bcnt (process_packet local)
+//   Local copy/alias of packet header `bcnt`.
+//
+// - cur_bcnt (process_packet local)
+//   Local copy/alias of binfo.bcnt_start for each packet processed.
+//
+// - netbcnt (process_packet local)
+//   `bcnt` value to be returned by `process_packet`.
 
 static hashpipe_status_t *st_p;
 static const char * status_key;
