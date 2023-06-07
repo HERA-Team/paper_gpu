@@ -29,8 +29,6 @@
 #define PAYLOAD_LEN(x)    (htobe16((uint16_t)(x)))
 #define ANTENNA(x)        (htobe16((uint16_t)(x)))
 
-#define CONVERT(x)        (htobe32((x)))
-
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
@@ -204,7 +202,7 @@ static void *run(hashpipe_thread_args_t * args)
    uint32_t nbytes = 0;
    int chan;
    unsigned long bl;
-   int i,j,p;
+   int i,j;
    struct timespec pkt_start, pkt_stop;
    int offset = 0;
    uint16_t ant0, ant1;
@@ -244,7 +242,6 @@ static void *run(hashpipe_thread_args_t * args)
      hashpipe_status_unlock_safe(&st);
      
      buf = &(db->block[block_idx]); 
-     pktdata_t *p_out = pkt.data;
 
      // Loop through baselines and send the packets
      // Send all packets of one baseline and then the next 
@@ -273,9 +270,9 @@ static void *run(hashpipe_thread_args_t * args)
                pkt.hdr.offset = OFFSET(offset);
                // hera_bda_buf_data_idx(l,s,b,c,p)
                datoffset = hera_bda_buf_data_idx((bl*n_samples + i), chan, 0);
-               for(p=0; p<OUTPUT_BYTES_PER_PACKET/sizeof(pktdata_t); p++){
-                 *p_out++ = CONVERT(buf->data[j][datoffset+p]);
-               }
+
+               // Copy data to packet
+               memcpy(pkt.data, buf->data[j] + datoffset, OUTPUT_BYTES_PER_PACKET);
 
                int bytes_sent = send(sockfd, &pkt, sizeof(pkt.hdr)+OUTPUT_BYTES_PER_PACKET, 0); 
                nbytes += bytes_sent;
@@ -309,7 +306,6 @@ static void *run(hashpipe_thread_args_t * args)
                }
                
                // Setup for next packet
-               p_out = pkt.data;
                pkt_start = pkt_stop;
                offset++;
              } // chan
