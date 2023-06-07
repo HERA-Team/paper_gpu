@@ -216,8 +216,7 @@ typedef struct {
 //        [MAYBE BUG in that I don't think this actually changes or needs to be
 //        changed], `binfo.bcnt_log_late`.
 //     2. Re-initialize the two "working blocks" vis `initialize_block()`.
-//     3. Re-initialize `binfo` counters and stats [BUG: `flags` are
-//        initialized to 0 rather than 1!].
+//     3. Re-initialize `binfo` counters and stats to zeros (flags to ones).
 //
 // - pkt_bcnt (process_packet local)
 //   Local copy/alias of packet header `bcnt`.
@@ -576,12 +575,12 @@ static inline uint32_t process_packet(
 
       // Reinitialize binfo counter for these blocks  
       binfo.block_packet_counter[binfo.block_i] = 0;
-      memset(binfo.flags[binfo.block_i],     0, PACKETS_PER_BLOCK*sizeof(char));
+      memset(binfo.flags[binfo.block_i],     1, PACKETS_PER_BLOCK*sizeof(char));
       memset(binfo.baselines[binfo.block_i], 0, BASELINES_PER_BLOCK*sizeof(char));
 
       int next_block = (binfo.block_i + 1) % CATCHER_N_BLOCKS;
       binfo.block_packet_counter[next_block] = 0;
-      memset(binfo.flags[next_block],     0, PACKETS_PER_BLOCK*sizeof(char));
+      memset(binfo.flags[next_block],     1, PACKETS_PER_BLOCK*sizeof(char));
       memset(binfo.baselines[next_block], 0, BASELINES_PER_BLOCK*sizeof(char));
     } 
     return -1;
