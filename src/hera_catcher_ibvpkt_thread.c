@@ -185,21 +185,15 @@ typedef struct {
 //   The "distance" from `binfo.bcnt_start` (aka `cur_bcnt`) to the processed
 //   packet's `bcnt`.
 //   * Calculated as `pkt_bcnt - cur_bcnt`.
-//   * Currently, `pkt_bcnt_dist` greater than or equal to 0 and less that 3/4
-//     the total number of baselines in the entire output databuf are accepted.
-//     [I think this the upper limit is a BUG and that it should be
-//     `3*BASELINES_PER_BLOCK`!]
+//   * Packets with `pkt_bcnt_dist` greater than or equal to 0 and less that
+//     `3*BASELINES_PER_BLOCK` are accepted.
 //   * For accepted packets, currently, if `pkt_bcnt_dist` is greater than or
-//     equal to half the total number of baselines in the entire output
-//     databuf [I think this limit is a BUG and that it should be
-//     `2*BASELINES_PER_BLOCK`!], then:
+//     equal to `2*BASELINES_PER_BLOCK`, then:
 //     1. The current block is marked as full
 //     2. `binfo` fields `bcnt_start` (and its alias `cur_bcnt`) and `block_i` are
 //        advanced by one block
-//     3. A new block is acquired (wait free) [but based on the `pkt_bcnt`
-//        which is many blocks out due to the limit BUG!], the block is
-//        "initialized" via `initialize_block()` with
-//        `cur_bcnt+BASELINES_PER_BLOCK
+//     3. A new block is acquired (wait free) and the block is "initialized"
+//        via `initialize_block()` with `cur_bcnt+BASELINES_PER_BLOCK`.
 //     4. The new `binfo.block_i` block of the "per block" `binfo` fields are
 //        set to zeros (`flags` set to ones), as is the `binfo.out_of_seq_cnt`
 //        field.
@@ -438,10 +432,10 @@ static inline uint32_t process_packet(
   // belonging to the block after (2) arrives, the current block is marked full and
   // counters advance (1,2,3). 
   // ARP: currently tuned to transmissions don't overlap at all, so could reduce this to 1
-  if (0 <= pkt_bcnt_dist && pkt_bcnt_dist < 3*CATCHER_N_BLOCKS/4*BASELINES_PER_BLOCK){
+  if (0 <= pkt_bcnt_dist && pkt_bcnt_dist < 3*BASELINES_PER_BLOCK){
     // If the packet is for the block after the next block (i.e. current 
     // block + 2 blocks), mark the current block as filled.
-    if (pkt_bcnt_dist >= 2*CATCHER_N_BLOCKS/4*BASELINES_PER_BLOCK){
+    if (pkt_bcnt_dist >= 2*BASELINES_PER_BLOCK){
        
        netbcnt = set_block_filled(db, &binfo);
        //fprintf(stdout,"Filled Block: %d from bcnt: %d to bcnt: %d\n", binfo.block_i, db->block[binfo.block_i].header.bcnt[0], 
@@ -451,7 +445,13 @@ static inline uint32_t process_packet(
        cur_bcnt += BASELINES_PER_BLOCK;
        binfo.bcnt_start += BASELINES_PER_BLOCK;
        //printf("net_thread: block_i=%d -> %d\n", binfo.block_i, (binfo.block_i + 1) % CATCHER_N_BLOCKS);
-       binfo.block_i = (binfo.block_i+1) % CATCHER_N_BLOCKS; 
+       binfo.block_i = (binfo.block_i+1) % CATCHER_N_BLOCKS;
+
+       // At this point, pkt_block_i should be the block after binfo.block_id
+       if(pkt_block_i != (binfo.block_i + 1) % CATCHER_N_BLOCKS) {
+         hashpipe_warn(__FUNCTION__, "expected next block to be %d, but got %d",
+             (binfo.block_i + 1) % CATCHER_N_BLOCKS, pkt_block_i);
+       }
 
        // Wait (hopefully not long!) to acquire the block after next.
        while((rv=hera_catcher_bda_input_databuf_busywait_free(db, pkt_block_i)) != HASHPIPE_OK) {
