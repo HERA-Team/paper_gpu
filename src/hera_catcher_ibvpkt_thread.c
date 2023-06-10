@@ -527,7 +527,11 @@ static inline uint32_t process_packet(
     // ARP: would prefer to measure in blocks, not bcnts
     if (binfo.bcnt_start >= binfo.bcnt_log_late) {
        hashpipe_warn("hera_catcher_ibvpkt_thread",
-           "Ignoring late packet (%d bcnts late)", -pkt_bcnt_dist);
+           "Ignoring late packet (bcnt %d from X engine %d was %d bcnts late)",
+	   pkt_header.bcnt, pkt_header.xeng_id, -pkt_bcnt_dist);
+
+       // Don't warn again until next block at the earliest
+       binfo.bcnt_log_late = binfo.bcnt_start + BASELINES_PER_BLOCK;
     }
     return -1;
   } // end "late packet" block
