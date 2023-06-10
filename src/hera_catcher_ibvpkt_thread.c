@@ -526,8 +526,8 @@ static inline uint32_t process_packet(
     // Issue warning if not after a reset
     // ARP: would prefer to measure in blocks, not bcnts
     if (binfo.bcnt_start >= binfo.bcnt_log_late) {
-       hashpipe_warn("hera_catcher_bda_net_thread",
-           "Ignorning late packet (%d bcnts late)", -pkt_bcnt_dist);
+       hashpipe_warn("hera_catcher_ibvpkt_thread",
+           "Ignoring late packet (%d bcnts late)", -pkt_bcnt_dist);
     }
     return -1;
   } // end "late packet" block
@@ -535,7 +535,7 @@ static inline uint32_t process_packet(
   else {
     // If this is the first out of order packet, issue warning.
     if (binfo.out_of_seq_cnt == 0) {
-       hashpipe_warn("hera_catcher_bda_net_thread", "out of seq bcnt %012lx (expected: %012lx <= bcnt < %012x)",
+       hashpipe_warn("hera_catcher_ibvpkt_thread", "out of seq bcnt %012lx (expected: %012lx <= bcnt < %012x)",
            pkt_header.bcnt, binfo.bcnt_start, binfo.bcnt_start+3*BASELINES_PER_BLOCK);
     }
 
@@ -559,7 +559,7 @@ static inline uint32_t process_packet(
       // Reset out_of_seq_cnt
       binfo.out_of_seq_cnt = 0;
 
-      hashpipe_warn("hera_catcher_bda_net_thread",
+      hashpipe_warn("hera_catcher_ibvpkt_thread",
       "resetting to first_bcnt %012lx bcnt %012lx block %d based on packet bcnt %012lx",
                      first_bcnt, binfo.bcnt_start, binfo.block_i, pkt_header.bcnt);
 
