@@ -22,6 +22,7 @@
 #include "hashpipe_ibvpkt_databuf.h"
 #include "paper_databuf.h"
 #include "hashpipe_packet.h"
+#include "nt_memutils.h"
 
 // The HERA X-Engine packets arrive over the wire with this layout (first 64
 // bytes shown):
@@ -496,7 +497,8 @@ static inline uint32_t process_packet(
     // Copy data into buffer
     payload_p = ((struct hera_ibv_xeng_pkt *)p_frame)->payload;
     dest_p    = (uint32_t *)(db->block[pkt_block_i].data + (pkt_header.payload_len * pkt_offset/sizeof(uint32_t)));
-    memcpy(dest_p, payload_p, pkt_header.payload_len);
+    // Use "non-temporal" memcpy to avoid polluting the CPU cache
+    memcpy_nt(dest_p, payload_p, pkt_header.payload_len);
 
     //fprintf(stdout,"bcnt:%d\t block_id:%d\t Pkt cntr: %lu\n",b, pkt_block_i, binfo.block_packet_counter[pkt_block_i]);
 
