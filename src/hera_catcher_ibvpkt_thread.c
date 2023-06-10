@@ -485,6 +485,14 @@ static inline uint32_t process_packet(
     //fprintf(stdout, "bcnt-loc:%d\txeng:%d\ttime:%d\tpktoffset:%d\n",b,x,t,o);
     //fprintf(stdout, "offset: %d\n", pkt_offset);
 
+    // Check for duplicate packets (i.e. has flag already been cleared to 0?)
+    if(!binfo.flags[pkt_block_i][pkt_offset]){
+      // This slot is already filled
+      fprintf(stderr, "Packet repeated!!\n");
+      binfo.out_of_seq_cnt++;
+      return -1;
+    }
+
     // Copy data into buffer
     payload_p = ((struct hera_ibv_xeng_pkt *)p_frame)->payload;
     dest_p    = (uint32_t *)(db->block[pkt_block_i].data + (pkt_header.payload_len * pkt_offset/sizeof(uint32_t)));
@@ -509,13 +517,6 @@ static inline uint32_t process_packet(
     binfo.flags[pkt_block_i][pkt_offset] = 0;
     binfo.block_packet_counter[pkt_block_i]++;
 
-    // Check for duplicate packets (i.e. has flag already been cleared to 0?)
-    if(!binfo.flags[pkt_block_i][pkt_offset]){
-      // This slot is already filled
-      fprintf(stderr, "Packet repeated!!\n");
-      binfo.out_of_seq_cnt++;
-      return -1;
-    }
     return netbcnt;
   } // end "accepted packet" block
 
