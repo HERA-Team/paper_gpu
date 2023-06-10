@@ -831,7 +831,7 @@ static void *run(hashpipe_thread_args_t * args)
         packet_count++;
 
         // Copy packet into any blocks where it belongs.
-        const uint64_t bcnt = process_packet((hera_catcher_bda_input_databuf_t *)db, p_frame);
+        const uint32_t bcnt = process_packet((hera_catcher_bda_input_databuf_t *)db, p_frame);
 
         clock_gettime(CLOCK_MONOTONIC, &stop);
         wait_ns = ELAPSED_NS(recv_start, start);
