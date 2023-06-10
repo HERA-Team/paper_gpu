@@ -21,14 +21,22 @@ sleep 1;
 
 cd xGPU/src
 make clean
-make NSTATION=$n_ants NFREQUENCY=384 NTIME=2048 NTIME_PIPE=1024 CUDA_ARCH=sm_61 DP4A=yes
+if ! make NSTATION=$n_ants NFREQUENCY=384 NTIME=2048 NTIME_PIPE=1024 CUDA_ARCH=sm_61 DP4A=yes
+then
+  echo "error building xGPU, giving up"
+  exit 1
+fi
 sudo make install prefix="/usr/local/xgpu-1080-dp4a-384c-${n_ants}a"
 cd ../..
 
 cd src
 ./configure --with-xgpu="/usr/local/xgpu-1080-dp4a-384c-${n_ants}a"
 make clean
-make
+if ! make
+then
+  echo "error building xGPU, giving up"
+  exit 1
+fi
 sudo make install
 cd ..
 
