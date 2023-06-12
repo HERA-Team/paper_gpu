@@ -78,7 +78,8 @@ typedef struct struct_pkt {
 
 // ARP removing factor of 5/4 for more headroom; packet loss depends on how many snaps are enabled
 //#define PACKET_DELAY_NS (4 * 125 * 300)
-#define PACKET_DELAY_NS (4 * 125 * 400)
+//#define PACKET_DELAY_NS (4 * 125 * 400)
+#define PACKET_DELAY_NS (4 * 125 * 200)
 
 
 // Open and connect a UDP socket to the given host and port.  Note that port is
