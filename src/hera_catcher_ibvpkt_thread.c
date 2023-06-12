@@ -477,8 +477,9 @@ static inline uint32_t process_packet(
        hashpipe_status_unlock_safe(st_p);
     }
 
-    // Evaluate the location in the buffer to which to copy the packet data
-    b = (pkt_header.bcnt - binfo.bcnt_start) % BASELINES_PER_BLOCK;
+    // Evaluate the location in the block_i'th buffer to which to copy the
+    // packet data
+    b = pkt_header.bcnt % BASELINES_PER_BLOCK;
     x = pkt_header.xeng_id % N_XENGINES_PER_TIME;
     t = (pkt_header.mcnt/Nt) % TIME_DEMUX;  //Nt = 2
     o = pkt_header.offset;
