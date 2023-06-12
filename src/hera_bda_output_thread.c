@@ -204,6 +204,7 @@ static void *run(hashpipe_thread_args_t * args)
    unsigned long bl;
    int i,j;
    struct timespec pkt_start, pkt_stop;
+   int64_t pkt_delay_remaining;
    int offset = 0;
    uint16_t ant0, ant1;
    hera_bda_block_t *buf;
@@ -300,8 +301,10 @@ static void *run(hashpipe_thread_args_t * args)
 
                // Delay to prevent overflowing network TX queue
                clock_gettime(CLOCK_MONOTONIC, &pkt_stop);
-               packet_delay.tv_nsec = PACKET_DELAY_NS - ELAPSED_NS(pkt_start, pkt_stop);
-               if(packet_delay.tv_nsec > 0 && packet_delay.tv_nsec < 1000*1000*1000){
+               pkt_delay_remaining = PACKET_DELAY_NS - ELAPSED_NS(pkt_start, pkt_stop);
+               if(pkt_delay_remaining > 0) {
+                 packet_delay.tv_sec  = pkt_delay_remaining / (1000*1000*1000);
+                 packet_delay.tv_nsec = pkt_delay_remaining % (1000*1000*1000);
                  nanosleep(&packet_delay, NULL);
                }
                
