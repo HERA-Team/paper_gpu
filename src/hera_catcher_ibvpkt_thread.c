@@ -111,6 +111,12 @@ struct __attribute__ ((__packed__)) hera_ibv_xeng_pkt {
 #define PKTSOCK_NFRAMES (PKTSOCK_FRAMES_PER_BLOCK * PKTSOCK_NBLOCKS)
 #endif // 0
 
+// Number of databuf blocks that are "active".  Minumum value is 2.
+// Theorietical maximum is CATCHER_N_BLOCKS-1, but practically speaking it
+// should only be as large as necessary to handle "bcnt dispersion" through the
+// network.
+#define N_WORKING_BLOCKS (4)
+
 // The fields of a block_info_t structure hold meta-data about the contents of
 // all the blocks in the output databuf.  As you can see by the
 // `CATCHER_N_BLOCKS` in the dimesions of some of the array fields, a single
@@ -231,7 +237,7 @@ static inline int block_for_bcnt(uint32_t bcnt){
 // of BASELINES_PER_BLOCK.
 static inline void initialize_block(hera_catcher_bda_input_databuf_t * db, uint64_t bcnt){
   int block_i = block_for_bcnt(bcnt);
-  db->block[block_i].header.bcnt[0]   = bcnt;
+  db->block[block_i].header.bcnt[0]   = bcnt - (bcnt % BASELINES_PER_BLOCK);
   db->block[block_i].header.good_data = 0;
 }
 
@@ -374,6 +380,7 @@ static inline uint32_t process_packet(
   uint64_t pkt_mcnt;
   uint32_t netbcnt = -1; // Value to return unless block is filled
   int b, x, t, o;
+  int i;
   int rv;
   uint32_t pkt_offset;
   int time_demux_block;
@@ -402,6 +409,11 @@ static inline uint32_t process_packet(
     fprintf(stdout,"Initializing the first blocks..\n");
     initialize_block(db, pkt_header.bcnt);
     initialize_block(db, pkt_header.bcnt+BASELINES_PER_BLOCK);
+    // Initialize the first working blocks
+    for(i=0; i<N_WORKING_BLOCKS; i++) {
+      // Initialize the "newly" acquired databuf blocks with new bcnt values.
+      initialize_block(db, pkt_header.bcnt + i*BASELINES_PER_BLOCK);
+    }
   } // end of "first packet ever" block
 
   // This MUST come after the "first packet ever" block because
@@ -422,10 +434,10 @@ static inline uint32_t process_packet(
   // belonging to the block after (2) arrives, the current block is marked full and
   // counters advance (1,2,3).
   // ARP: currently tuned to transmissions don't overlap at all, so could reduce this to 1
-  if (0 <= pkt_bcnt_dist && pkt_bcnt_dist < 3*BASELINES_PER_BLOCK){
+  if (0 <= pkt_bcnt_dist && pkt_bcnt_dist < (N_WORKING_BLOCKS+1)*BASELINES_PER_BLOCK) {
     // If the packet is for the block after the next block (i.e. current block
     // + 2 blocks), mark the current block as filled.
-    if (pkt_bcnt_dist >= 2*BASELINES_PER_BLOCK){
+    if (pkt_bcnt_dist >= N_WORKING_BLOCKS*BASELINES_PER_BLOCK){
 
        // Set current block filled
        netbcnt = set_block_filled(db, &binfo);
@@ -439,10 +451,11 @@ static inline uint32_t process_packet(
        // TODO binfo.block_log_late = ???;
        binfo.out_of_seq_cnt = 0;
 
-       // At this point, pkt_block_i should be the block after binfo.block_i
-       if(pkt_block_i != (binfo.block_i + 1) % CATCHER_N_BLOCKS) {
+       // At this point, pkt_block_i should be N_WORKING_BLOCKS-1 blocks after
+       // binfo.block_i (mod CATCHER_N_BLOCKS)
+       if(pkt_block_i != (binfo.block_i + N_WORKING_BLOCKS - 1) % CATCHER_N_BLOCKS) {
          hashpipe_warn(__FUNCTION__, "expected next block to be %d, but got %d",
-             (binfo.block_i + 1) % CATCHER_N_BLOCKS, pkt_block_i);
+             (binfo.block_i + N_WORKING_BLOCKS - 1) % CATCHER_N_BLOCKS, pkt_block_i);
        }
 
        // Reset counters for pkt_block_i ("new" block)
@@ -470,12 +483,12 @@ static inline uint32_t process_packet(
        }
 
        // Initialize the newly acquired block
-       initialize_block(db, binfo.bcnt_start+BASELINES_PER_BLOCK);
+       initialize_block(db, binfo.bcnt_start+(N_WORKING_BLOCKS-1)*BASELINES_PER_BLOCK);
 
        hashpipe_status_lock_safe(st_p);
        hputs(st_p->buf, status_key, "running");
        hashpipe_status_unlock_safe(st_p);
-    }
+    } // end "push block" block
 
     // Evaluate the location in the block_i'th buffer to which to copy the
     // packet data
@@ -570,22 +583,19 @@ static inline uint32_t process_packet(
       "resetting to first_bcnt %012lx bcnt %012lx block %d based on packet bcnt %012lx",
                      first_bcnt, binfo.bcnt_start, binfo.block_i, pkt_header.bcnt);
 
-      // Reinitialize binfo counter for these blocks
-      binfo.block_packet_counter[binfo.block_i] = 0;
-      memset(binfo.xeng_pkt_counter[binfo.block_i], 0, N_XENGINES*sizeof(long));
-      memset(binfo.flags[binfo.block_i],            1, PACKETS_PER_BLOCK*sizeof(char));
-      memset(binfo.baselines[binfo.block_i],        0, BASELINES_PER_BLOCK*sizeof(char));
+      // Reinitialize for the working blocks
+      for(i=0; i<N_WORKING_BLOCKS; i++) {
+        // Reset binfo counters
+        int blkidx = (binfo.block_i + i) % CATCHER_N_BLOCKS;
+        binfo.block_packet_counter[blkidx] = 0;
+        memset(binfo.xeng_pkt_counter[blkidx], 0, N_XENGINES*sizeof(long));
+        memset(binfo.flags[blkidx],            1, PACKETS_PER_BLOCK*sizeof(char));
+        memset(binfo.baselines[blkidx],        0, BASELINES_PER_BLOCK*sizeof(char));
 
-      int next_block = (binfo.block_i + 1) % CATCHER_N_BLOCKS;
-      binfo.block_packet_counter[next_block] = 0;
-      memset(binfo.xeng_pkt_counter[next_block], 0, N_XENGINES*sizeof(long));
-      memset(binfo.flags[next_block],            1, PACKETS_PER_BLOCK*sizeof(char));
-      memset(binfo.baselines[next_block],        0, BASELINES_PER_BLOCK*sizeof(char));
-
-      // Reinitialize the previosuly acquired databuf blocks with new bcnt
-      // values.
-      initialize_block(db, binfo.bcnt_start);
-      initialize_block(db, binfo.bcnt_start+BASELINES_PER_BLOCK);
+        // Reinitialize the previosuly acquired databuf blocks with new bcnt
+        // values.
+        initialize_block(db, binfo.bcnt_start+i*BASELINES_PER_BLOCK);
+      }
     }
     return -1;
   }
