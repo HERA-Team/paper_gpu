@@ -149,8 +149,8 @@ typedef struct {
 // `bcnt` of the corresponding "slice" of the data portion of the databuf block.
 //
 // hera_catcher_net_thread and hera_catcher_ibvpkt_thread are blissfully
-// unaware of `Nbls`. Instead the arrange the data from incoming packets into
-// sequence of spectra for consecutive bcnts, partitioning them into
+// unaware of `Nbls`. Instead they arrange the data from incoming packets into
+// a sequence of baseline spectra for consecutive bcnts, partitioning them into
 // `BASELINES_PER_BLOCK` `bcnt`s per block.
 //
 // The various `bcnt` related fields and variables are elucidated here:
@@ -566,7 +566,7 @@ static inline uint32_t process_packet(
     // are missed (e.g. due to network problems), reset first_bcnt and binfo to
     // the new reality using the same databuf blocks that are currently in use.
     if (binfo.out_of_seq_cnt > MAX_OUT_OF_SEQ_PKTS) {
-      // To new reality is that pkt_header.bcnt is destined for binfo.block_i
+      // The new reality is that pkt_header.bcnt is destined for binfo.block_i
       // (binfo's "current" databuf block).  binfo's bcnt_start field must be
       // changed to reflect the new bcnt range of the current block.  Because
       // the new bcnt_start value will be an arbitrary multiple of
@@ -583,7 +583,7 @@ static inline uint32_t process_packet(
       "resetting to first_bcnt %012lx bcnt %012lx block %d based on packet bcnt %012lx",
                      first_bcnt, binfo.bcnt_start, binfo.block_i, pkt_header.bcnt);
 
-      // Reinitialize for the working blocks
+      // Reinitialize the working blocks
       for(i=0; i<N_WORKING_BLOCKS; i++) {
         // Reset binfo counters
         int blkidx = (binfo.block_i + i) % CATCHER_N_BLOCKS;
