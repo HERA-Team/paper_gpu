@@ -115,7 +115,7 @@ struct __attribute__ ((__packed__)) hera_ibv_xeng_pkt {
 // Theorietical maximum is CATCHER_N_BLOCKS-1, but practically speaking it
 // should only be as large as necessary to handle "bcnt dispersion" through the
 // network.
-#define N_WORKING_BLOCKS (4)
+#define N_WORKING_BLOCKS (12)
 
 // The fields of a block_info_t structure hold meta-data about the contents of
 // all the blocks in the output databuf.  As you can see by the
