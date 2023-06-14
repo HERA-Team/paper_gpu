@@ -406,9 +406,7 @@ static inline uint32_t process_packet(
     // acquired before entering the main "for each packet" loop and these
     // initialize_block calls only happen upon reception of the very first
     // packet.
-    fprintf(stdout,"Initializing the first blocks..\n");
-    initialize_block(db, pkt_header.bcnt);
-    initialize_block(db, pkt_header.bcnt+BASELINES_PER_BLOCK);
+    fprintf(stdout,"Initializing the first %d blocks..\n", N_WORKING_BLOCKS);
     // Initialize the first working blocks
     for(i=0; i<N_WORKING_BLOCKS; i++) {
       // Initialize the "newly" acquired databuf blocks with new bcnt values.
@@ -555,8 +553,10 @@ static inline uint32_t process_packet(
   else {
     // If this is the first out of order packet, issue warning.
     if (binfo.out_of_seq_cnt == 0) {
-       hashpipe_warn("hera_catcher_ibvpkt_thread", "out of seq bcnt %012lx (expected: %012lx <= bcnt < %012x)",
-           pkt_header.bcnt, binfo.bcnt_start, binfo.bcnt_start+3*BASELINES_PER_BLOCK);
+       hashpipe_warn("hera_catcher_ibvpkt_thread",
+           "out of seq bcnt %012lx (expected: %012lx <= bcnt < %012x)",
+           pkt_header.bcnt, binfo.bcnt_start,
+           binfo.bcnt_start+(N_WORKING_BLOCKS+1)*BASELINES_PER_BLOCK);
     }
 
     binfo.out_of_seq_cnt++;
