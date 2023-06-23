@@ -218,7 +218,6 @@ static inline uint32_t process_packet(
   static block_info_t binfo;
   packet_header_t pkt_header;
   int pkt_block_i;
-  int i;
   const uint32_t *payload_p;
   uint32_t *dest_p;
   int32_t pkt_bcnt_dist;
@@ -333,13 +332,11 @@ static inline uint32_t process_packet(
     //fprintf(stdout, "bcnt-loc:%d\txeng:%d\ttime:%d\tpktoffset:%d\n",b,x,t,o);
     //fprintf(stdout, "offset: %d\n", pkt_offset);
     
-    // Copy data into buffer with byte swap
+    // Copy data into buffer
     payload_p = (uint32_t *)(PKT_UDP_DATA(p_frame) + sizeof(packet_header_t)); 
     dest_p    = (uint32_t *)(db->block[pkt_block_i].data + (pkt_header.payload_len * pkt_offset/sizeof(uint32_t)));
+    memcpy(dest_p, payload_p, pkt_header.payload_len);
 
-    for(i=0; i<(pkt_header.payload_len>>2); i++){
-      dest_p[i] = be32toh(payload_p[i]);
-    }
     //fprintf(stdout,"bcnt:%d\t block_id:%d\t Pkt cntr: %lu\n",b, pkt_block_i, binfo.block_packet_counter[pkt_block_i]);
 
     // If this is the first packet of this baseline, update header

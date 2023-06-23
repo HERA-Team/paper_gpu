@@ -20,6 +20,9 @@ AS_VAR_SET_IF(CFLAGS,[],[CFLAGS=])
 # Checks for programs.
 AC_PROG_CC
 
+# Check processor flags
+AX_CHECK_X86_FEATURES
+
 # Check for HASHPIPE and xGPU
 AX_CHECK_HASHPIPE
 AX_CHECK_XGPUINFO

@@ -29,8 +29,6 @@
 #define PAYLOAD_LEN(x)    (htobe16((uint16_t)(x)))
 #define ANTENNA(x)        (htobe16((uint16_t)(x)))
 
-#define CONVERT(x)        (htobe32((x)))
-
 #define ELAPSED_NS(start,stop) \
   (((int64_t)stop.tv_sec-start.tv_sec)*1000*1000*1000+(stop.tv_nsec-start.tv_nsec))
 
@@ -80,7 +78,8 @@ typedef struct struct_pkt {
 
 // ARP removing factor of 5/4 for more headroom; packet loss depends on how many snaps are enabled
 //#define PACKET_DELAY_NS (4 * 125 * 300)
-#define PACKET_DELAY_NS (4 * 125 * 400)
+//#define PACKET_DELAY_NS (4 * 125 * 400)
+#define PACKET_DELAY_NS (4 * 125 * 200)
 
 
 // Open and connect a UDP socket to the given host and port.  Note that port is
@@ -204,8 +203,9 @@ static void *run(hashpipe_thread_args_t * args)
    uint32_t nbytes = 0;
    int chan;
    unsigned long bl;
-   int i,j,p;
+   int i,j;
    struct timespec pkt_start, pkt_stop;
+   int64_t pkt_delay_remaining;
    int offset = 0;
    uint16_t ant0, ant1;
    hera_bda_block_t *buf;
@@ -244,7 +244,6 @@ static void *run(hashpipe_thread_args_t * args)
      hashpipe_status_unlock_safe(&st);
      
      buf = &(db->block[block_idx]); 
-     pktdata_t *p_out = pkt.data;
 
      // Loop through baselines and send the packets
      // Send all packets of one baseline and then the next 
@@ -273,9 +272,9 @@ static void *run(hashpipe_thread_args_t * args)
                pkt.hdr.offset = OFFSET(offset);
                // hera_bda_buf_data_idx(l,s,b,c,p)
                datoffset = hera_bda_buf_data_idx((bl*n_samples + i), chan, 0);
-               for(p=0; p<OUTPUT_BYTES_PER_PACKET/sizeof(pktdata_t); p++){
-                 *p_out++ = CONVERT(buf->data[j][datoffset+p]);
-               }
+
+               // Copy data to packet
+               memcpy(pkt.data, buf->data[j] + datoffset, OUTPUT_BYTES_PER_PACKET);
 
                int bytes_sent = send(sockfd, &pkt, sizeof(pkt.hdr)+OUTPUT_BYTES_PER_PACKET, 0); 
                nbytes += bytes_sent;
@@ -303,13 +302,14 @@ static void *run(hashpipe_thread_args_t * args)
 
                // Delay to prevent overflowing network TX queue
                clock_gettime(CLOCK_MONOTONIC, &pkt_stop);
-               packet_delay.tv_nsec = PACKET_DELAY_NS - ELAPSED_NS(pkt_start, pkt_stop);
-               if(packet_delay.tv_nsec > 0 && packet_delay.tv_nsec < 1000*1000*1000){
+               pkt_delay_remaining = PACKET_DELAY_NS - ELAPSED_NS(pkt_start, pkt_stop);
+               if(pkt_delay_remaining > 0) {
+                 packet_delay.tv_sec  = pkt_delay_remaining / (1000*1000*1000);
+                 packet_delay.tv_nsec = pkt_delay_remaining % (1000*1000*1000);
                  nanosleep(&packet_delay, NULL);
                }
                
                // Setup for next packet
-               p_out = pkt.data;
                pkt_start = pkt_stop;
                offset++;
              } // chan
