@@ -8,6 +8,10 @@ source ~/hera-venv/bin/activate hera
 
 hostname=`hostname -s`
 
+hashpipe=hashpipe
+plugin=paper_gpu.so
+extraopts="-o IBVPKTSZ=42,8,4608"
+
 function getip() {
   out=$(host $1) && echo $out | awk '{print $NF}'
 }
@@ -135,10 +139,10 @@ case ${hostname} in
     xid1=$(( 2*(mypx-1) + 1))
 
     instances=( 
-      #                               GPU       NET    FLF   GPU  OUT  BDA
-      # mask  bind_host               DEV  XID  CPU    CPU   CPU  CPU  CPU
-      "0x00ff eth3                     0  $xid0  7   0x000e   4    5    6" # Instance 0, eth3
-      "0xff00 eth5                     1  $xid1 15   0x0e00  12   13   14" # Instance 1, eth5
+      #                               GPU        IBV  NET    FLF   GPU  OUT  BDA
+      # mask  bind_host               DEV  XID   CPU  CPU    CPU   CPU  CPU  CPU
+      "0x00ff eth3                     0  $xid0   3    7   0x0006   4    5    6" # Instance 0, eth3
+      "0xff00 eth5                     1  $xid1  11   15   0x0600  12   13   14" # Instance 1, eth5
     );;
 
   *)
@@ -153,11 +157,12 @@ function init() {
   bindhost=$3
   gpudev=$4
   xid=$5
-  netcpu=$6
-  flfcpu=$7
-  gpucpu=$8
-  outcpu=$9
-  bdacpu=${10}
+  ibvcpu=$6
+  netcpu=$7
+  flfcpu=$8
+  gpucpu=$9
+  outcpu=$10
+  bdacpu=${11}
 
   if [ -z "${mask}" ]
   then
@@ -173,7 +178,9 @@ function init() {
 
   if [ $USE_IBVERBS -eq 1 ]
   then
-    netthread=hera_ibv_thread
+    #netthread=hera_ibv_thread
+    ibvthread="ibvpkt_thread"
+    netthread="hera_ibvpkt_thread"
   else
     netthread=hera_pktsock_thread
   fi
@@ -185,13 +192,14 @@ function init() {
   then
     echo "launching BDA in TEST VECTOR mode"
     echo taskset $mask \
-    hashpipe -p paper_gpu -I $instance \
+    $hashpipe -p $plugin -I $instance \
       -c $gpucpu hera_fake_gpu_thread \
       -c $bdacpu hera_gpu_bda_thread \
       -c $outcpu hera_bda_output_thread
     taskset $mask \
-    hashpipe -p paper_gpu -I $instance \
+    $hashpipe -p $plugin -I $instance \
       -o XID=$xid \
+      $extraopts \
       -c $gpucpu hera_fake_gpu_thread \
       -c $bdacpu hera_gpu_bda_thread \
       -c $outcpu hera_bda_output_thread \
@@ -202,10 +210,12 @@ function init() {
   else
     echo "Using baseline dependent averaging"
     echo taskset $mask \
-    hashpipe -p paper_gpu -I $instance \
+    $hashpipe -p $plugin -I $instance \
       -o BINDHOST=$bindhost \
       -o GPUDEV=$gpudev \
       -o XID=$xid \
+      $extraopts \
+      ${ibvthread:+-c $ibvcpu $ibvthread} \
       -c $netcpu $netthread \
       -m $flfcpu paper_fluff_thread \
       -c $gpucpu paper_gpu_thread \
@@ -215,10 +225,12 @@ function init() {
     then
       echo "Using redis logger"
       { taskset $mask \
-      hashpipe -p paper_gpu -I $instance \
+      $hashpipe -p $plugin -I $instance \
         -o BINDHOST=$bindhost \
         -o GPUDEV=$gpudev \
         -o XID=$xid \
+        $extraopts \
+        ${ibvthread:+-c $ibvcpu $ibvthread} \
         -c $netcpu $netthread \
         -m $flfcpu paper_fluff_thread \
         -c $gpucpu paper_gpu_thread \
@@ -230,10 +242,12 @@ function init() {
     else
       echo "*NOT* using redis logger"
       taskset $mask \
-      hashpipe -p paper_gpu -I $instance \
+      $hashpipe -p $plugin -I $instance \
         -o BINDHOST=$bindhost \
         -o GPUDEV=$gpudev \
         -o XID=$xid \
+        $extraopts \
+        ${ibvthread:+-c $ibvcpu $ibvthread} \
         -c $netcpu $netthread \
         -m $flfcpu paper_fluff_thread \
         -c $gpucpu paper_gpu_thread \
@@ -247,7 +261,7 @@ function init() {
 }
 
 # Default to Packet sockets; No redis logging
-USE_IBVERBS=0
+USE_IBVERBS=1
 USE_REDIS=0
 USE_TEST=0
 
@@ -256,13 +270,13 @@ for arg in $@; do
     -h)
       echo "Usage: $(basename $0) [-r] [-i] INSTANCE_ID [...]"
       echo "  -r : Use redis logging (in addition to log files)"
-      echo "  -i : Use IB-verbs pipeline (rather than packet sockets)"
+      echo "  -i : Do not use IB-verbs pipeline (rather than packet sockets)"
       echo "  -t : Run BDA in test vector mode"
       exit 0
     ;;
 
     -i)
-      USE_IBVERBS=1
+      USE_IBVERBS=0
       shift
     ;;
     -r)
@@ -280,7 +294,7 @@ if [ -z "$1" ]
 then
   echo "Usage: $(basename $0) [-r] [-i] [-a] INSTANCE_ID [...]"
   echo "  -r : Use redis logging (in addition to log files)"
-  echo "  -i : Use IB-verbs pipeline (rather than packet sockets)"
+  echo "  -i : Do not use IB-verbs pipeline (rather than packet sockets)"
   echo "  -t : Lauch BDA in test vector mode"
   exit 1
 fi

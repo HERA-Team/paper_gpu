@@ -1,7 +1,7 @@
 #! /bin/bash
 
-#default to 208 antennas
-n_ants=208
+#default to 256 antennas
+n_ants=256
 
 while getopts ":a:h:" opt; do
   case ${opt} in
