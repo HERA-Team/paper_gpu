@@ -69,9 +69,11 @@ if __name__ == '__main__':
     try:
         while True:
             qlen = r.llen(CONV_FILE_KEY)
-            children = {f: thd for f, thd in children.items()
-            if filter_done(f, thd)}:
-                print(f'Queue length={qlen}, N workers={len(children)}/{nworkers}')
+            children = {
+                f: thd for f, thd in children.items()
+                if filter_done(f, thd)
+            }
+            print(f'Queue length={qlen}, N workers={len(children)}/{nworkers}')
             if qlen > 0 and len(children) < nworkers:
                 # once we get a key, we commit to finish it or return it; no dropping
                 f = r.rpop(CONV_FILE_KEY)  # process most recent first (LIFO)
