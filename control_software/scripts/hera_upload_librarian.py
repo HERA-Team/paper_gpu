@@ -19,6 +19,7 @@ LIB_FILE_KEY = 'corr:files:uploaded'
 JD_KEY = 'corr:files:jds'
 CONN_NAME = 'local-rtp'
 CPU_AFFINITY = [3, 4, 5, 6]
+ADD_DIFF_TO_LIBRARIAN = False
 
 def filter_done(f, thd):
     is_alive = thd.is_alive()
@@ -69,11 +70,13 @@ if __name__ == '__main__':
         while True:
             qlen = r.llen(CONV_FILE_KEY)
             children = {f: thd for f, thd in children.items()
-			if filter_done(f, thd)}
-            print(f'Queue length={qlen}, N workers={len(children)}/{nworkers}')
+            if filter_done(f, thd)}:
+                print(f'Queue length={qlen}, N workers={len(children)}/{nworkers}')
             if qlen > 0 and len(children) < nworkers:
                 # once we get a key, we commit to finish it or return it; no dropping
                 f = r.rpop(CONV_FILE_KEY)  # process most recent first (LIFO)
+                if (not ADD_DIFF_TO_LIBRARIAN) and ("diff" in f):
+                    continue
                 r.hset(PURG_FILE_KEY, f, 0)
                 print(f'Starting worker on {f}')
                 thd = mp.Process(target=process_next, args=(f,))
