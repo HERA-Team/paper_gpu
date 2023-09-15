@@ -547,7 +547,7 @@ static inline uint64_t process_packet(
                 + paper_input_databuf_data_idx(binfo.m, binfo.a + i, binfo.c, 0); //time index is always zero
             //fprintf(stdout, "m:%d, a:%d, c:%d, %lu\n", binfo.m, binfo.a, binfo.c, paper_input_databuf_data_idx(binfo.m, binfo.a, binfo.c, 0));
             memcpy_nt(dest_p, payload_p, 2*N_CHAN_PER_PACKET*N_TIME_PER_PACKET);
-            payload_p += 2 * N_CHAN_PER_PACKET * N_TIME_PER_PACKET;
+            payload_p += (2 * N_CHAN_PER_PACKET * N_TIME_PER_PACKET) / sizeof(uint64_t);
         }
 
         return netmcnt;
