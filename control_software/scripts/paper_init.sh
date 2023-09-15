@@ -161,7 +161,7 @@ function init() {
   netcpu=$7
   flfcpu=$8
   gpucpu=$9
-  outcpu=$10
+  outcpu=${10}
   bdacpu=${11}
 
   if [ -z "${mask}" ]
