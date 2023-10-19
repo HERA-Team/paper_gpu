@@ -36,7 +36,8 @@ function init() {
   netcpu=9
   ibvcpu=10
   autocpu=11
-  outmask=0x180 # cores 7 and 8
+  #outmask=0x180 # cores 7 and 8
+  outcpu=8
 
   echo "Using BDA threads"
   echo taskset $mask \
@@ -45,7 +46,7 @@ function init() {
     -o IBVPKTSZ=42,24,4096 \
     -c $ibvcpu ibvpkt_thread \
     -c $netcpu hera_catcher_ibvpkt_thread \
-    -m $outmask hera_catcher_disk_thread \
+    -c $outcpu hera_catcher_disk_thread \
     -c $autocpu hera_catcher_autocorr_thread
 
   if [ $USE_REDIS -eq 1 ]
@@ -57,7 +58,7 @@ function init() {
       -o IBVPKTSZ=42,24,4096 \
       -c $ibvcpu ibvpkt_thread \
       -c $netcpu hera_catcher_ibvpkt_thread \
-      -m $outmask hera_catcher_disk_thread  \
+      -c $outcpu hera_catcher_disk_thread  \
       -c $autocpu hera_catcher_autocorr_thread \
     < /dev/null 2>&3 1>~/catcher.out.$instance; } \
     3>&1 1>&2 | tee ~/catcher.err.$instance | \
@@ -70,7 +71,7 @@ function init() {
       -o IBVPKTSZ=42,24,4096 \
       -c $ibvcpu ibvpkt_thread \
       -c $netcpu hera_catcher_ibvpkt_thread \
-      -m $outmask hera_catcher_disk_thread \
+      -c $outcpu hera_catcher_disk_thread \
       -c $autocpu hera_catcher_autocorr_thread \
        < /dev/null \
       1> ~/catcher.out.$instance \
