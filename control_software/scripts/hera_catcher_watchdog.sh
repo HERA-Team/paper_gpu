@@ -1,7 +1,11 @@
 #! /bin/bash
 
+# Activate HERA virtual environment
+. ~/hera-venv/bin/activate hera
+
 LOGFILE=~/catcher_watchdog.log
-RUNNING=`ssh hera-sn1 "ps aux | grep [h]era_catcher_net_thread"`
+RUNNING=`ssh hera-sn1 "ps aux | grep [h]era_catcher_disk_thread"`
+echo >> $LOGFILE
 date >> $LOGFILE
 echo "Result: ${RUNNING}" >> $LOGFILE
 if [[ -n ${RUNNING} ]]; then
@@ -12,6 +16,5 @@ else
     #hera_catcher_down.sh
     #hera_catcher_up.py --redislog
     #hera_catcher_ctl.py start --tag science
+    hera_xeng_start.sh
 fi
-
-
