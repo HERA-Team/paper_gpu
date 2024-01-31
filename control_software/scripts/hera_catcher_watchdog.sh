@@ -12,6 +12,9 @@ if [[ -n ${RUNNING} ]]; then
     echo "Catcher running" >> $LOGFILE
 else
     echo "Catcher DOWN. Restarting..." >> $LOGFILE
+    TS=$(date +%Y%m%dT%H%M)
+    mv /home/hera/catcher.err.0 /home/hera/catcher.err.0.$TS
+    mv /home/hera/catcher.out.0 /home/hera/catcher.out.0.$TS
     #hera_catcher_ctl.py stop
     #hera_catcher_down.sh
     #hera_catcher_up.py --redislog
