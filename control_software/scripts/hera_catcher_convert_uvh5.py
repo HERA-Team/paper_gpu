@@ -106,6 +106,9 @@ def process_next(f, cwd, hostname):
                 session.commit()
     r.rpush(CONV_FILE_KEY, os.path.relpath(f_out, cwd))  # document we finished it
     r.hdel(PURG_FILE_KEY, f)
+    if os.path.exists(f_out):
+        print(f'Deleting {f_in}')
+        os.remove(f_in)
     print(f'Finished')
 
 
