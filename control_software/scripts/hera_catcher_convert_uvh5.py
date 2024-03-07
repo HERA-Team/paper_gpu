@@ -20,6 +20,7 @@ FAILED_FILE_KEY = 'corr:files:failed'
 JD_KEY = 'corr:files:jds'
 #CPU_AFFINITY = list(range(6))  # the rest are reserved for the catcher
 CPU_AFFINITY = [2, 3, 4, 5]
+MINIMUM_UVH5_RELATIVE_SIZE = 0.1  # if a .uvh5 file is less than 10% the size of the .dat file, don't auto-delete the .dat file
 
 def match_up_filenames(f, cwd=None):
     path, f_in = os.path.split(f)
@@ -107,8 +108,10 @@ def process_next(f, cwd, hostname):
     r.rpush(CONV_FILE_KEY, os.path.relpath(f_out, cwd))  # document we finished it
     r.hdel(PURG_FILE_KEY, f)
     if os.path.exists(f_out):
-        print(f'Deleting {f_in}')
-        os.remove(f_in)
+        # check that size of f_out is reasonable
+        if os.path.getsize(f_out) > MINIMUM_UVH5_RELATIVE_SIZE * os.path.getsize(f_in):
+            print(f'Deleting {f_in}')
+            os.remove(f_in)
     print(f'Finished')
 
 
