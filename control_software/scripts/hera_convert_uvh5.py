@@ -17,8 +17,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "-o", "--output_file", required=True, help="name of output UVH5 file"
     )
+    parser.add_argument(
+        "-c",
+        "--chunksize",
+        required=False,
+        default=-1,
+        help="size of blt chunks to use",
+    )
 
     args = parser.parse_args()
 
     if not os.path.exists(args.output_file):
-        make_uvh5_file(args.output_file, args.meta_file, args.input_file)
+        make_uvh5_file(
+            args.output_file,
+            args.meta_file,
+            args.input_file,
+            args.chunksize,
+        )
