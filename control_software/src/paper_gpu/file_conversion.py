@@ -108,6 +108,55 @@ def read_data_file(filename, data_shape):
     return data
 
 
+def read_data_file_chunk(filename, data_shape, offset):
+    """
+    Read part of a block of binary data from file.
+
+    Parameters
+    ----------
+    filename : str
+        The name of the file to read.
+    data_shape : tuple of int
+        The expected size of the data. Data read will be reshaped to this.
+    offset : int
+        The offset of the data. This is the starting location from where the
+        file should be read in terms of the number of elements. This will be
+        converted into number of bytes to calculate the "true" offset.
+
+    Returns
+    -------
+    data : nd-array
+        The data that was read. Compound numpy datatype with a "r" field and "i"
+        field, both 32-bit integers.
+
+    Raises
+    ------
+    ValueError
+        Raised if the data read in cannot be reshaped into the specified shape.
+    """
+    # figure out file indexing
+    count = int(np.prod(data_shape))
+    real_offset = offset * 8  # account for each field being 8 bytes long
+
+    # read raw binary data
+    data = np.fromfile(
+        filename,
+        dtype=_hera_corr_dtype,
+        count=count,
+        offset=real_offset,
+    )
+    try:
+        data = data.reshape(data_shape)
+    except ValueError:
+        raise ValueError(
+            f"data cannot be reshaped; data read is {data.size} elements, "
+            "target size is {data_shape}"
+        )
+
+    # return to user
+    return data
+
+
 def get_antpos_info():
     """
     Fetch HERA antenna positions from hera_mc.
@@ -150,7 +199,7 @@ def get_antpos_info():
     return antpos_xyz, ant_names
 
 
-def make_uvh5_file(filename, metadata_file, data_file):
+def make_uvh5_file(filename, metadata_file, data_file, chunksize=-1):
     """
     Make a UVH5 file from a metdata + raw binary data file.
 
@@ -166,6 +215,9 @@ def make_uvh5_file(filename, metadata_file, data_file):
         The name of the metadata file written by the correlator.
     data_file : str
         The name of the data file written by the correlator.
+    chunksize : int, optional
+        The size of chunks to use when reading in data, in units of the number
+        of baseline-time elements. Default is -1, to read the whole file.
 
     Returns
     -------
@@ -243,8 +295,9 @@ def make_uvh5_file(filename, metadata_file, data_file):
     # define the size of the data array
     data_shape = (nblts, nfreq, nstokes)
 
-    # read in raw data
-    data = read_data_file(data_file, data_shape)
+    if chunksize == -1:
+        # read in all raw data
+        data = read_data_file(data_file, data_shape)
 
     # save in UVH5 file
     with h5py.File(filename, "w") as h5f:
@@ -307,47 +360,101 @@ def make_uvh5_file(filename, metadata_file, data_file):
         block_size = 0  # let bitshuffle decide
         compression_opts = (block_size, 2)  # use LZ4 compression after bitshuffle
 
-        if have_bitshuffle:
-            visdata_dset = data_dgrp.create_dataset(
-                "visdata",
+        if chunksize == -1:
+            if have_bitshuffle:
+                visdata_dset = data_dgrp.create_dataset(
+                    "visdata",
+                    chunks=data_chunks,
+                    data=data,
+                    compression=compression_filter,
+                    compression_opts=compression_opts,
+                    dtype=_hera_corr_dtype,
+                )
+            else:
+                warnings.warn(no_bitshuffle_message)
+                visdata_dset = data_dgrp.create_dataset(
+                    "visdata",
+                    chunks=data_chunks,
+                    data=data,
+                    dtype=_hera_corr_dtype,
+                )
+
+            # also write flags and nsamples
+            flags = np.zeros_like(data, dtype=np.bool_)
+            flags_dset = data_dgrp.create_dataset(
+                "flags",
                 chunks=data_chunks,
-                data=data,
-                compression=compression_filter,
-                compression_opts=compression_opts,
-                dtype=_hera_corr_dtype,
+                data=flags,
+                dtype="b1",
+                compression="lzf",
+            )
+            nsamples = np.ones_like(data, dtype=np.float32)
+            nsamples_dset = data_dgrp.create_dataset(
+                "nsamples",
+                chunks=data_chunks,
+                data=nsamples,
+                dtype=np.float32,
+                compression="lzf",
             )
         else:
-            warnings.warn(no_bitshuffle_message)
-            visdata_dset = data_dgrp.create_dataset(
-                "visdata",
+            # create datasets
+            if have_bitshuffle:
+                visdata_dset = data_dgrp.create_dataset(
+                    "visdata",
+                    data_shape,
+                    chunks=data_chunks,
+                    compression=compression_filter,
+                    compression_opts=compression_opts,
+                    dtype=_hera_corr_dtype,
+                )
+            else:
+                warnings.warn(no_bitshuffle_message)
+                visdata_dset = data_grp.create_dataset(
+                    "visdata",
+                    data_shape,
+                    chunks=data_chunks,
+                    dtype=_hera_corr_dtype,
+                )
+
+            # also create flags and nsamples
+            flags_dset = data_dgrp.create_dataset(
+                "flags",
+                data_shape,
                 chunks=data_chunks,
-                data=data,
-                dtype=_hera_corr_dtype,
+                dtype="b1",
+                compression="lzf",
+            )
+            nsamples_dset = data_dgrp.create_dataset(
+                "nsamples",
+                data_shape,
+                chunks=data_chunks,
+                dtype=np.float32,
+                compression="lzf",
             )
 
-        # also write flags and nsamples
-        flags = np.zeros_like(data, dtype=np.bool_)
-        flags_dset = data_dgrp.create_dataset(
-            "flags",
-            chunks=data_chunks,
-            data=flags,
-            dtype="b1",
-            compression="lzf",
-        )
-        nsamples = np.ones_like(data, dtype=np.float32)
-        nsamples_dset = data_dgrp.create_dataset(
-            "nsamples",
-            chunks=data_chunks,
-            data=nsamples,
-            dtype=np.float32,
-            compression="lzf",
-        )
+            # now read the data in chunks
+            nchunks = nblts // chunksize + 1
+            for i in range(nchunks):
+                idx0 = i * chunksize
+                idx1 = min((i + 1) * chunksize, nblts)
+                chunk_shape = (idx1 - idx0, nfreq, nstokes)
+                offset = int(idx0) * int(nfreq) * int(nstokes)
+
+                data = read_data_file_chunk(data_file, chunk_shape, offset)
+                visdata_dset[idx0:idx1, :, :] = data
+
+                # also fill in flags and nsamples
+                flags = np.zeros_like(data, dtype=np.bool_)
+                flags_dset[idx0:idx1, :, :] = flags
+
+                nsamples = np.ones_like(data, dtype=np.float32)
+                nsamples_dset[idx0:idx1, :, :] = nsamples
 
     # we're done!
     return metadata
 
 def check_file(filename):
-    '''Makes sure a converted file and has expected data/flag/nsample arrays 
+    '''Makes sure a converted file and has expected data/flag/nsample arrays
     with the right shapes and types.
 
     Arguments:
@@ -360,8 +467,8 @@ def check_file(filename):
     assert len(f['/Data']) == 3
 
     # check that arrays are the right shape
-    expected_shape = (f['/Header']['Nblts'][()], 
-                      f['/Header']['Nfreqs'][()], 
+    expected_shape = (f['/Header']['Nblts'][()],
+                      f['/Header']['Nfreqs'][()],
                       f['/Header']['Npols'][()])
     assert f['/Data']['visdata'].shape == expected_shape
     assert f['/Data']['flags'].shape == expected_shape
