@@ -22,6 +22,7 @@ if __name__ == "__main__":
         "--chunksize",
         required=False,
         default=-1,
+        type=int,
         help="size of blt chunks to use",
     )
 

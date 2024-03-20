@@ -118,7 +118,7 @@ def read_data_file_chunk(filename, data_shape, offset):
         The name of the file to read.
     data_shape : tuple of int
         The expected size of the data. Data read will be reshaped to this.
-    offset : tuple of int
+    offset : int
         The offset of the data. This is the starting location from where the
         file should be read in terms of the number of elements. This will be
         converted into number of bytes to calculate the "true" offset.
@@ -135,7 +135,7 @@ def read_data_file_chunk(filename, data_shape, offset):
         Raised if the data read in cannot be reshaped into the specified shape.
     """
     # figure out file indexing
-    count = np.prod(data_shape)
+    count = int(np.prod(data_shape))
     real_offset = offset * 8  # account for each field being 8 bytes long
 
     # read raw binary data
@@ -401,6 +401,7 @@ def make_uvh5_file(filename, metadata_file, data_file, chunksize=-1):
             if have_bitshuffle:
                 visdata_dset = data_dgrp.create_dataset(
                     "visdata",
+                    data_shape,
                     chunks=data_chunks,
                     compression=compression_filter,
                     compression_opts=compression_opts,
@@ -410,6 +411,7 @@ def make_uvh5_file(filename, metadata_file, data_file, chunksize=-1):
                 warnings.warn(no_bitshuffle_message)
                 visdata_dset = data_grp.create_dataset(
                     "visdata",
+                    data_shape,
                     chunks=data_chunks,
                     dtype=_hera_corr_dtype,
                 )
@@ -417,12 +419,14 @@ def make_uvh5_file(filename, metadata_file, data_file, chunksize=-1):
             # also create flags and nsamples
             flags_dset = data_dgrp.create_dataset(
                 "flags",
+                data_shape,
                 chunks=data_chunks,
                 dtype="b1",
                 compression="lzf",
             )
             nsamples_dset = data_dgrp.create_dataset(
                 "nsamples",
+                data_shape,
                 chunks=data_chunks,
                 dtype=np.float32,
                 compression="lzf",
@@ -434,7 +438,7 @@ def make_uvh5_file(filename, metadata_file, data_file, chunksize=-1):
                 idx0 = i * chunksize
                 idx1 = min((i + 1) * chunksize, nblts)
                 chunk_shape = (idx1 - idx0, nfreq, nstokes)
-                offset = idx0 * nfreq * nstokes
+                offset = int(idx0) * int(nfreq) * int(nstokes)
 
                 data = read_data_file_chunk(data_file, chunk_shape, offset)
                 visdata_dset[idx0:idx1, :, :] = data
@@ -444,7 +448,7 @@ def make_uvh5_file(filename, metadata_file, data_file, chunksize=-1):
                 flags_dset[idx0:idx1, :, :] = flags
 
                 nsamples = np.ones_like(data, dtype=np.float32)
-                nsamples_dset[idx0:idx1, :, :] = samples
+                nsamples_dset[idx0:idx1, :, :] = nsamples
 
     # we're done!
     return metadata

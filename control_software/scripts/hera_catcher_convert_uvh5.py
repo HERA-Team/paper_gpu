@@ -72,7 +72,7 @@ def process_next(f, cwd, hostname):
     p.cpu_affinity(CPU_AFFINITY)
     print(f'Processing {f}')
     (f_in, f_meta, f_out), is_diff = match_up_filenames(f, cwd)
-    info = make_uvh5_file(f_out, f_meta, f_in)
+    info = make_uvh5_file(f_out, f_meta, f_in, 1000)
     print(f'Finished {f_in} -> {f_out}')
     times = np.unique(info['time_array'])
     starttime = Time(times[0], scale='utc', format='jd')
