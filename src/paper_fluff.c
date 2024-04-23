@@ -103,7 +103,7 @@ void paper_fluff_threaded(void *args)
         // Ant3C[0:7]T[0:1]
         // Ant3C[0:7]T[2:3]
         for(i=0; i<8; i++) {
-          row[i]  = _mm256_load_si256(p_in + paper_input_databuf_data_idx256(m + i%Nt, a+i/Nt, c, 0));
+          row[i]  = _mm256_stream_load_si256(p_in + paper_input_databuf_data_idx256(m + i%Nt, a+i/Nt, c, 0));
         }
 
         /* TRANSPOSE in blocks of 32 bits*/

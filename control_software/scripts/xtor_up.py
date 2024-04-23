@@ -21,15 +21,15 @@ parser.add_argument('-i', dest='ninstances', type=int, default=2,
                     help='Number of pipeline instances per host')
 parser.add_argument('--runtweak', dest='runtweak', action='store_true', default=False,
                     help='Run tweak-perf.sh on X-hosts before starting correlator')
-parser.add_argument('--ibverbs', dest='ibverbs', action='store_true', default=False,
-                    help='Use the IB Verbs netthread. Experimental!')
+parser.add_argument('--noibverbs', dest='noibverbs', action='store_true', default=False,
+                    help='Disable the IB Verbs netthread.')
 parser.add_argument('--redislog', dest='redislog', action='store_true', default=False,
                     help='Use the redis logger to duplicate log messages on redishost\'s log-channel pubsub stream')
 parser.add_argument('--nodatabase', dest='nodatabase', action='store_true', default=False,
                     help='Don\'t try to get configuration from the site database.')
 parser.add_argument('--test', dest='test', action='store_true', default=False,
                     help='Run BDA in test vector mode')
-parser.add_argument('-n', dest='n_ants_data', type=int, default=192,
+parser.add_argument('-n', dest='n_ants_data', type=int, default=256,
                     help ='Number of antennas that have data (used if cminfo is not set)')
 parser.add_argument('--pypath', dest='pypath', type=str, default="/home/hera/hera-venv",
                     help='The path to a python virtual environment which will be activated prior to running paper_init. ' +
@@ -51,7 +51,7 @@ if args.runtweak:
 
 # Start X-Engines
 init_args = []
-if args.ibverbs:
+if args.noibverbs:
     init_args += ['-i']
 if args.redislog:
     init_args += ['-r']

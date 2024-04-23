@@ -4,7 +4,8 @@
 source ~/hera-venv/bin/activate hera
 
 LOGFILE=~/xeng_start.log
-export TAG=science
+export TAG="${1:-science}"
+echo "using tag $TAG"
 
 # Kill off anything still running
 hera_xeng_stop.sh

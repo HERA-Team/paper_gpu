@@ -813,8 +813,10 @@ static void *run(hashpipe_thread_args_t * args)
 
           // We write N_BL_PER_WRITE at a time.
           // these variables store the baseline numbers for the start and end of these blocks
-          strt_bcnt = header.bcnt[bctr];
-          stop_bcnt = header.bcnt[bctr+N_BL_PER_WRITE-1];
+          // We calculate these from header.bcnt[0] to avoid problems with
+          // old/stale values that may result from missed packets.
+          strt_bcnt = header.bcnt[0] + bctr;
+          stop_bcnt = header.bcnt[0] + bctr + N_BL_PER_WRITE - 1;
 
           clock_gettime(CLOCK_MONOTONIC, &t_start);
           compute_sum_diff(db_in32, bl_buf_sum, bl_buf_diff, bctr);

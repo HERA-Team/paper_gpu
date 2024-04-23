@@ -37,8 +37,8 @@ hera_xeng_stop.sh
 # Start afresh
 echo Starting X-Engines > $LOGFILE
 date >> $LOGFILE
-echo xtor_up.py --runtweak --redislog px{1..16} &>> $LOGFILE
-xtor_up.py --runtweak --redislog px{1..16} &>> $LOGFILE
+echo xtor_up.py --runtweak --redislog --noibverbs px{1..16} &>> $LOGFILE
+xtor_up.py --runtweak --redislog --noibverbs px{1..16} &>> $LOGFILE
 echo hera_catcher_up.py --redislog &>> $LOGFILE
 hera_catcher_up.py --redislog &>> $LOGFILE
 echo hera_catcher_ctl.py start --tag $TAG &>> $LOGFILE
