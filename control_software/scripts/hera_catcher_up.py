@@ -42,6 +42,7 @@ if args.redislog:
    init_args += ['-r']
 
 # Start Catcher
+jd = get_current_jd()
 if int(jd) % 2 == 1:
     # odd JD -- write to /data1
     data_dir = "/data1"
