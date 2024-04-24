@@ -80,10 +80,16 @@ def process_next(f, cwd, hostname):
     stoptime = Time(times[-1], scale='utc', format='jd')
     obs_id = int(np.floor(starttime.gps))
     int_jd = int(np.floor(starttime.jd))
+    if int_jd % 2 == 1:
+        # odd JD
+        data_dir = "/data1"
+    else:
+        # even JD
+        data_dir = "/data2"
     if "hera-sn1" in hostname:
-        prefix = os.path.join("/mnt/sn1", f"{int_jd:d}")
+        prefix = os.path.join(f"/mnt/sn1{data_dir}", f"{int_jd:d}")
     elif "hera-sn2" in hostname:
-        prefix = os.path.join("/mnt/sn2", f"{int_jd:d}")
+        prefix = os.path.join(f"/mnt/sn2{data_dir}", f"{int_jd:d}")
     # only add sum files (and not 'junk' or 'delete' tags) to M&C
     if not is_diff and info['tag'] not in DELETE_TAGS:
         db = mc.connect_to_mc_db(None)
