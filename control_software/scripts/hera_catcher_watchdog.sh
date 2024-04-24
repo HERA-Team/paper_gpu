@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # Activate HERA virtual environment
-. ~/hera-venv/bin/activate hera
+. ~/miniforge3/bin/activate hera
 
 LOGFILE=~/catcher_watchdog.log
 RUNNING=`ssh hera-sn1 "ps aux | grep [h]era_catcher_disk_thread"`
