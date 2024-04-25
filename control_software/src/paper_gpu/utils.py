@@ -1,5 +1,5 @@
 import subprocess
-import time
+import astropy.time import Time
 
 def run_on_hosts(hosts, cmd, user=None, wait=True):
     '''Run a command on a list of hosts.'''
@@ -17,7 +17,7 @@ def run_on_hosts(hosts, cmd, user=None, wait=True):
 
 def get_current_jd():
     """
-    Get the current Julian date (JD) from Unix time.
+    Get the current Julian date (JD) from astropy.
 
     Paramaters
     ----------
@@ -27,7 +27,4 @@ def get_current_jd():
     -------
     float : the current Julian date
     """
-    unix_time = time.time()
-
-    # JD 2440587.5 == Jan 1, 1970
-    return (unix_time / 86400.0) + 2440587.5
+    return Time.now().jd
