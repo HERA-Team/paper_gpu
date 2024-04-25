@@ -1,5 +1,5 @@
 import subprocess
-import astropy.time import Time
+from astropy.time import Time
 
 def run_on_hosts(hosts, cmd, user=None, wait=True):
     '''Run a command on a list of hosts.'''
