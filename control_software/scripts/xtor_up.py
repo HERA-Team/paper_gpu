@@ -31,7 +31,7 @@ parser.add_argument('--test', dest='test', action='store_true', default=False,
                     help='Run BDA in test vector mode')
 parser.add_argument('-n', dest='n_ants_data', type=int, default=256,
                     help ='Number of antennas that have data (used if cminfo is not set)')
-parser.add_argument('--pypath', dest='pypath', type=str, default="/home/hera/hera-venv",
+parser.add_argument('--pypath', dest='pypath', type=str, default="/home/hera/miniforge3",
                     help='The path to a python virtual environment which will be activated prior to running paper_init. ' +
                          'Only relevant if using the --redislog flag, which uses a python redis interface')
 

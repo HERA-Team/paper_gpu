@@ -4,7 +4,7 @@
 PATH="$(dirname $0):${PATH}"
 
 # Activate conda env
-source ~/hera-venv/bin/activate hera
+source ~/miniforge3/bin/activate hera
 
 # enable gdb debugging of segfauls
 ulimit -c unlimited

@@ -5,7 +5,7 @@ import time
 import argparse
 import os
 from paper_gpu import catcher
-from paper_gpu.utils import run_on_hosts
+from paper_gpu.utils import run_on_hosts, get_current_jd
 
 parser = argparse.ArgumentParser(
     description='Start the HERA Catcher Machine',
@@ -23,7 +23,7 @@ parser.add_argument('--redislog', dest='redislog',
     help="Use the redis logger to duplicate log messages on redishost's" +
          "log-channel pubsub stream")
 parser.add_argument('--pypath', dest='pypath', type=str,
-    default="/home/hera/hera-venv",
+    default="/home/hera/miniforge3",
     help='The path to a python virtual environment which will be' +
          'activated prior to running paper_init. Only relevant if using' +
          ' the --redislog flag, which uses a python redis interface')
@@ -42,7 +42,19 @@ if args.redislog:
    init_args += ['-r']
 
 # Start Catcher
-run_on_hosts([args.host], python_source_cmd + ['cd', '/data;', 'hera_catcher_init.sh'] + init_args + ['0'], wait=True)
+jd = get_current_jd()
+if int(jd) % 2 == 1:
+    # odd JD -- write to /data1
+    data_dir = "/data1"
+else:
+    # even JD -- write to /data2
+    data_dir = "/data2"
+
+run_on_hosts(
+    [args.host],
+    python_source_cmd + ['cd', f'{data_dir};', 'hera_catcher_init.sh'] + init_args + ['0'],
+    wait=True
+)
 
 # Start hashpipe<->redis gateways
 cpu_mask = '0x0004'

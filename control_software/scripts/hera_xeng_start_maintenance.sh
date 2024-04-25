@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # source conda environment
-source ~/hera-venv/bin/activate hera
+source ~/miniforge3/bin/activate hera
 
 LOGFILE=~/xeng_start.log
 

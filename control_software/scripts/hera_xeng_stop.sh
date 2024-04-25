@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # source conda environment
-source ~/hera-venv/bin/activate hera
+source ~/miniforge3/bin/activate hera
 
 hera_catcher_ctl.py stop
 hera_catcher_down.sh
