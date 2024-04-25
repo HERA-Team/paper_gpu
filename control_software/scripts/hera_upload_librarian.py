@@ -42,7 +42,13 @@ def process_next(f):
     instances = client.search_instances(query)  # takes a long time
     if len(instances['results']) == 0:
         # this file is not in the librarian, so add it
-        full_path = os.path.join(DATA_DIR, f)
+        try:
+            # this assumes the entry is in a format like '2460425/zen.2460425.51498.sum.uvh5'
+            int_jd = int(f.split('/')[0])
+        except:
+            int_jd = int(re.findall(r'\d{7}', f)[0])
+        # for /mnt/sn1 we have even days in data2 and odd days in data1
+        full_path = os.path.join(DATA_DIR, ['data2', 'data1'][int_jd % 2], f)
         print(f'Uploading {f}')
         client.upload_file(full_path, f, 'infer', rec_info={})
     else:
