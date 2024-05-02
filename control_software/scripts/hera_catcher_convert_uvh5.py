@@ -40,6 +40,16 @@ def get_cwd_from_redis(r, default='/data'):
     else:
         return cwd
 
+def get_cwd_from_filename(fn):
+    _, f_in = os.path.split(fn)
+    jd_day, _, _ = TEMPLATE.match(f_in).groups()
+    if int(jd_day) % 2 == 1:
+        # odd day
+        return "/data1"
+    else:
+        # even day
+        return "/data2"
+
 def return_purgatory_files(r):
     purgfiles = r.hgetall(PURG_FILE_KEY)
     for f in purgfiles:
@@ -134,7 +144,6 @@ if __name__ == '__main__':
     assert psutil.cpu_count() == 12, "if this errors, you're not on hera-sn1"
 
     r = redis.Redis(REDISHOST, decode_responses=True)
-    cwd = get_cwd_from_redis(r)
     hostname = socket.gethostname()
     qlen = r.llen(RAW_FILE_KEY)
     print(f'Starting conversion. Queue length={qlen}. N workers={len(CPU_AFFINITY)}')
@@ -149,6 +158,7 @@ if __name__ == '__main__':
             if qlen > 0 and len(children) < nworkers:
                 # once we get a key, we commit to finish it or return it; no dropping
                 f = r.rpop(RAW_FILE_KEY)  # process most recent first (LIFO)
+                cwd = get_cwd_from_filename(f)
                 r.hset(PURG_FILE_KEY, f, 0)
                 print(f'Starting worker on {f}')
                 thd = mp.Process(target=process_next, args=(f, cwd, hostname))
