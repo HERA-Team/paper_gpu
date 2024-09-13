@@ -7,6 +7,7 @@ import json
 import yaml
 import argparse
 import numpy as np
+from .file_conversion import get_antpos_info
 
 from hera_corr_cm import redis_cm
 
@@ -43,22 +44,24 @@ def get_hera_to_corr_ants(corr_map, snap_config):
         except(KeyError):
             continue
         corr_ant_number = json.loads(snap_ant_chans)[chan//2] #Indexes from 0-3 (ignores pol)
-        corr_nums.append(corr_ant_number)
+        corr_nums.append((a, corr_ant_number))
     return corr_nums
 
 
 def create_bda_config(n_ants_data, nants=352):
     cminfo = get_cm_info()
-
     r = redis.Redis('redishost', decode_responses=True)
     corr_map = r.hgetall("corr:map")
     config = yaml.safe_load(r.hget("snap_configuration", "config"))
-    corr_ant_nums = get_hera_to_corr_ants(corr_map, config)
-    bl_pairs = assign_bl_pair_tier(corr_ant_nums, nants=nants)
+    field2corr_nums = get_hera_to_corr_ants(corr_map, config)
+    xyz, ants = get_antpos_info()
+    antpos = dict(zip(map(lambda x: int(x[2:]), ants), xyz))
+    bl_pairs = assign_bl_pair_tier(field2corr_nums, antpos, nants=nants)
     return bl_pairs
 
 
-def assign_bl_pair_tier(corr_nums, nants=352):
+def assign_bl_pair_tier(field2corr_nums, antpos, cen_ants=(145, 165, 166),
+                        edge_ant=155, tol=1, nants=352):
     """
     Assign a BDA tier to each baseline pair.
 
@@ -67,15 +70,23 @@ def assign_bl_pair_tier(corr_nums, nants=352):
     corr_nums : list
         The list of correlator inputs
     """
+    cen = np.mean(np.array([antpos[ca] for ca in cen_ants]), axis=0)
+    antdist = {k: np.linalg.norm(v - cen) for k, v in antpos.items()}
+    outriggers = set(k for k, v in antdist.items() if v > antdist[edge_ant] + tol)
+    corr2ant = {c: f for f, c in field2corr_nums}
     bl_pairs = []
-    #for ant0 in corr_nums
-    for ant0 in range(nants):
-        for ant1 in range(ant0, nants, 1):
-            if (ant0 in corr_nums) and (ant1 in corr_nums):
-               bl_pairs.append([ant0, ant1, 4])
-            else:
-               bl_pairs.append([ant0, ant1, 0])
 
+    for corr0 in range(nants):
+        ant0 = corr2ant.get(corr0, -1)
+        for corr1 in range(corr0, nants):
+            ant1 = corr2ant.get(corr1, -1)
+            if ant0 < 0 or ant1 < 0:
+                # Tier 0 is not recorded
+                bl_pairs.append([corr0, corr1, 0])
+            elif ant0 in outriggers or ant1 in outriggers:
+                bl_pairs.append([corr0, corr1, 2])
+            else:
+                bl_pairs.append([corr0, corr1, 4])
     return bl_pairs
 
 
@@ -99,5 +110,3 @@ def read_bda_config_from_redis(redishost="localhost"):
     # convert from string -> list of lists
     bl_pairs_list = bl_pairs_str.split("\n")
     bl_pairs = [list(map(int, blp.split(" "))) for blp in bl_pairs_list]
-
-    return np.asarray(bl_pairs)
