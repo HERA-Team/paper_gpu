@@ -229,7 +229,7 @@ def make_uvh5_file(filename, metadata_file, data_file, chunksize=-1):
 
     # get antennas positions and names from mc
     antpos_xyz, ant_names = get_antpos_info()
-    nants_telescope = len(ant_names)
+    Nants_telescope = len(ant_names)
 
     # read in metadata
     metadata = read_header_data(metadata_file)
@@ -256,7 +256,7 @@ def make_uvh5_file(filename, metadata_file, data_file, chunksize=-1):
 
     # compute other necessary metadata
     baseline_array = uvutils.antnums_to_baseline(
-        ant_0_array, ant_1_array, nants_telescope
+        ant_0_array, ant_1_array, Nants_telescope=Nants_telescope
     )
     nbls = len(np.unique(baseline_array))
     ant_nums = np.asarray([int(name[2:]) for name in ant_names])
