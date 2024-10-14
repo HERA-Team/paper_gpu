@@ -267,7 +267,7 @@ def make_uvh5_file(filename, metadata_file, data_file, chunksize=-1):
     cofa_xyz = uvutils.XYZ_from_LatLonAlt(cofa_lat_rad, cofa_lon_rad, altitude)
     antpos_xyz -= cofa_xyz
     # the uvw calculation will have to change when we turn fringe stopping on
-    uvw_array = uvutils.calc_uvw(
+    uvw_array = uvutils.phasing.calc_uvw(
         use_ant_pos=True,
         antenna_positions=antpos_xyz,
         antenna_numbers=ant_nums,
