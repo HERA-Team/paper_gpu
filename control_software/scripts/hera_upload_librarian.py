@@ -19,7 +19,7 @@ LIB_FILE_KEY = 'corr:files:uploaded'
 JD_KEY = 'corr:files:jds'
 CONN_NAME = 'local-rtp'
 CPU_AFFINITY = [3, 4, 5, 6]
-ADD_DIFF_TO_LIBRARIAN = False
+ADD_DIFF_TO_LIBRARIAN = True
 
 def filter_done(f, thd):
     is_alive = thd.is_alive()
